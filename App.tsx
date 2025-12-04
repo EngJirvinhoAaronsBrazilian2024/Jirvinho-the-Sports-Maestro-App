@@ -5,7 +5,7 @@ import { generateMatchAnalysis, checkBetResult } from './services/geminiService'
 import { Layout } from './components/Layout';
 import { TipCard } from './components/TipCard';
 import { StatsWidget } from './components/StatsWidget';
-import { PlayCircle, Lock, Mail, ChevronRight, Plus, Trash2, Save, FileText, Check, X, RefreshCw, Smartphone, TrendingUp, Award, Target, UserPlus, XCircle, Trophy, Flame, Eye, EyeOff, MessageSquare, Send, Globe, Newspaper, Calendar, Database, Wand2 } from 'lucide-react';
+import { PlayCircle, Lock, Mail, ChevronRight, Plus, Trash2, Save, FileText, Check, X, RefreshCw, Smartphone, TrendingUp, Award, Target, UserPlus, XCircle, Trophy, Flame, Eye, EyeOff, MessageSquare, Send, Globe, Newspaper, Calendar, Database, Wand2, Upload } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend } from 'recharts';
 
 // --- Constants ---
@@ -18,12 +18,9 @@ const LEAGUES = [
   "Süper Lig (Turkey)", "Championship (England)", "NBA (Basketball)", "NFL (American Football)"
 ];
 
-const TICKER_ITEMS = [
-  "🇧🇷 FLAMENGO vs FLUMINENSE: Big derby analysis now live!",
-  "🏆 CHAMPIONS LEAGUE: Real Madrid to bounce back?",
-  "💰 MASAVU TIPS: 3-day winning streak on Odd 4+!",
-  "🏀 NBA: Lakers vs Warriors prediction dropping at 8 PM.",
-  "🚨 NEWS: Neymar injury update inside."
+const STATIC_TICKER_ITEMS = [
+  "🇧🇷 JIRVINHO: The Sports Maestro is LIVE!",
+  "💰 Join the VIP channel for exclusive plays.",
 ];
 
 // --- App Component ---
@@ -72,7 +69,6 @@ export const App: React.FC = () => {
 
   useEffect(() => {
     checkUser();
-    // Use a longer polling interval for real DB to save quota
     const interval = setInterval(() => {
        fetchData(); 
     }, 15000);
@@ -249,16 +245,24 @@ export const App: React.FC = () => {
       
       const result = await checkBetResult(tip);
       
-      let message = `AI Verification Result:\n\n`;
-      message += `SCORE: ${result.score}\n`;
-      message += `STATUS: ${result.status}\n`;
-      message += `REASON: ${result.reason}\n\n`;
-      message += `Do you want to apply this result?`;
+      // Allow Admin to edit the score found by AI
+      const confirmedScore = window.prompt(
+          `AI Verification:\nStatus: ${result.status}\nReason: ${result.reason}\n\nConfirm or Correct the Score:`, 
+          result.score
+      );
 
-      if (window.confirm(message)) {
-          if (result.status === 'WON') await handleSettleTip(tip.id, TipStatus.WON, result.score);
-          else if (result.status === 'LOST') await handleSettleTip(tip.id, TipStatus.LOST, result.score);
-          else if (result.status === 'VOID') await handleSettleTip(tip.id, TipStatus.VOID, result.score);
+      if (confirmedScore !== null) {
+          // Map AI status string to Enum
+          let statusToApply = TipStatus.PENDING;
+          if (result.status === 'WON') statusToApply = TipStatus.WON;
+          else if (result.status === 'LOST') statusToApply = TipStatus.LOST;
+          else if (result.status === 'VOID') statusToApply = TipStatus.VOID;
+          
+          if (statusToApply !== TipStatus.PENDING) {
+              await handleSettleTip(tip.id, statusToApply, confirmedScore);
+          } else {
+              alert(`AI returned status '${result.status}'. Please settle manually.`);
+          }
       }
   };
 
@@ -279,6 +283,17 @@ export const App: React.FC = () => {
     setNewNews({ title: '', category: 'Football', source: '', body: '', imageUrl: '', videoUrl: '', matchDate: '' });
     fetchData();
     alert('News Published!');
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+              setNewNews({ ...newNews, imageUrl: reader.result as string });
+          };
+          reader.readAsDataURL(file);
+      }
   };
 
   const handleDeleteNews = async (id: string) => {
@@ -333,8 +348,15 @@ export const App: React.FC = () => {
   };
 
   const getAllHeadlines = () => {
-      const newsTitles = news.map(n => n.title);
-      return [...newsTitles, ...TICKER_ITEMS];
+      // Prioritize actual news posted by admin
+      const newsTitles = news.map(n => `🚨 ${n.title}`);
+      
+      // If we have real news, use it. Otherwise use static.
+      // Or mix them if you want both.
+      if (newsTitles.length > 0) {
+          return [...newsTitles, ...STATIC_TICKER_ITEMS];
+      }
+      return STATIC_TICKER_ITEMS;
   };
 
   // --- Swipe Logic ---
@@ -402,7 +424,7 @@ export const App: React.FC = () => {
             </div>
           )}
 
-          <form onSubmit={handleAuth} className="space-y-4">
+          <form onSubmit={handleAuth} className="space-y-4" autoComplete="off">
             {authMode === 'signup' && (
                 <div>
                     <label className="block text-slate-400 text-xs font-bold mb-1 uppercase">Display Name</label>
@@ -413,6 +435,7 @@ export const App: React.FC = () => {
                         className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brazil-green"
                         required
                         autoComplete="off"
+                        id="signup-name"
                     />
                 </div>
             )}
@@ -428,6 +451,8 @@ export const App: React.FC = () => {
                   className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-10 pr-4 py-3 text-white focus:outline-none focus:border-brazil-green"
                   required
                   autoComplete="off"
+                  id="email-field"
+                  name="email-field-random"
                 />
               </div>
             </div>
@@ -442,7 +467,9 @@ export const App: React.FC = () => {
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-10 pr-12 py-3 text-white focus:outline-none focus:border-brazil-green"
                   required={authMode !== 'forgot'}
-                  autoComplete="off"
+                  autoComplete="new-password"
+                  id="password-field"
+                  name="password-field-random"
                 />
                 <button 
                     type="button" 
@@ -513,11 +540,11 @@ export const App: React.FC = () => {
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
         >
-          {/* Live Ticker - Vertical Scroll */}
-          <div className="bg-gradient-to-r from-brazil-green to-brazil-blue h-10 rounded-lg mb-4 overflow-hidden shadow-lg border border-white/10 relative">
-              <div className="animate-scrollUp absolute w-full flex flex-col items-center space-y-2 py-2">
+          {/* Live Ticker - Horizontal Scroll (Now Dynamic) */}
+          <div className="bg-gradient-to-r from-brazil-green to-brazil-blue h-10 rounded-lg mb-4 overflow-hidden shadow-lg border border-white/10 relative flex items-center">
+              <div className="animate-scrollLeft absolute whitespace-nowrap flex items-center">
                   {getAllHeadlines().map((item, i) => (
-                      <span key={i} className="flex items-center text-sm font-bold text-white uppercase tracking-wide h-6 truncate max-w-full px-4">
+                      <span key={i} className="inline-flex items-center text-sm font-bold text-white uppercase tracking-wide mx-6">
                           <Flame size={14} className="mr-2 text-brazil-yellow shrink-0"/> {item}
                       </span>
                   ))}
@@ -1038,11 +1065,23 @@ export const App: React.FC = () => {
                         />
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <input 
-                            type="text" placeholder="Image URL (Optional)" 
-                            value={newNews.imageUrl || ''} onChange={(e) => setNewNews({...newNews, imageUrl: e.target.value})}
-                            className="bg-slate-900 border border-slate-700 text-white rounded-lg p-3 focus:border-brazil-green outline-none"
-                        />
+                        {/* IMAGE UPLOAD FIELD */}
+                        <div className="relative">
+                            <label className="flex items-center w-full cursor-pointer bg-slate-900 border border-slate-700 text-slate-400 rounded-lg p-3 hover:border-brazil-green transition-colors">
+                                <Upload size={18} className="mr-2 text-brazil-yellow"/>
+                                <span className="text-sm truncate">{newNews.imageUrl ? "Image Selected" : "Upload Image from Gallery"}</span>
+                                <input 
+                                    type="file" 
+                                    accept="image/*"
+                                    onChange={handleImageUpload}
+                                    className="hidden"
+                                />
+                            </label>
+                            {newNews.imageUrl && (
+                                <img src={newNews.imageUrl} alt="Preview" className="mt-2 h-16 w-16 object-cover rounded border border-slate-600"/>
+                            )}
+                        </div>
+
                         <input 
                             type="datetime-local" 
                             value={newNews.matchDate || ''} onChange={(e) => setNewNews({...newNews, matchDate: e.target.value})}
