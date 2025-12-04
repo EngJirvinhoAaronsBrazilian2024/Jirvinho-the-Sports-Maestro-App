@@ -287,6 +287,8 @@ class DBService {
       });
 
       // 2. Seed Tips
+      // Removed 'status' and 'votes' because they are not in the Omit signature of addTip
+      // They are set automatically inside addTip method.
       await this.addTip({
           category: TipCategory.SINGLE,
           teams: "Man City vs Arsenal",
