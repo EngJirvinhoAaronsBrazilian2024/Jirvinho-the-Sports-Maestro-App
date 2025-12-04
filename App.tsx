@@ -142,8 +142,9 @@ export const App: React.FC = () => {
       try {
           await dbService.loginWithGoogle();
           // Redirect happens automatically
-      } catch (e) {
-          setAuthError('Google Login Failed');
+      } catch (e: any) {
+          console.error("Google Login Error:", e);
+          setAuthError('Google Login Failed. Ensure "Google" is enabled in Supabase Auth Providers.');
           setLoading(false);
       }
   };
@@ -435,7 +436,8 @@ export const App: React.FC = () => {
                         className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brazil-green"
                         required
                         autoComplete="off"
-                        id="signup-name"
+                        id={`name-${Math.random()}`} 
+                        name="random-name-field"
                     />
                 </div>
             )}
@@ -451,8 +453,8 @@ export const App: React.FC = () => {
                   className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-10 pr-4 py-3 text-white focus:outline-none focus:border-brazil-green"
                   required
                   autoComplete="off"
-                  id="email-field"
-                  name="email-field-random"
+                  id={`email-${Math.random()}`}
+                  name="random-email-field"
                 />
               </div>
             </div>
@@ -468,8 +470,8 @@ export const App: React.FC = () => {
                   className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-10 pr-12 py-3 text-white focus:outline-none focus:border-brazil-green"
                   required={authMode !== 'forgot'}
                   autoComplete="new-password"
-                  id="password-field"
-                  name="password-field-random"
+                  id={`password-${Math.random()}`}
+                  name="random-password-field"
                 />
                 <button 
                     type="button" 
