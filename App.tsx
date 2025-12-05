@@ -539,14 +539,14 @@ export const App: React.FC = () => {
              ))}
           </div>
 
-          {/* Desktop Grid Layout (3 Columns) */}
-          <div className="hidden md:grid grid-cols-3 gap-6">
+          {/* Desktop Grid Layout (3 Columns) - UPDATED TO FILL VERTICAL SPACE */}
+          <div className="hidden md:grid grid-cols-3 gap-6 h-[calc(100vh-240px)] min-h-[500px]">
              {Object.values(TipCategory).map(cat => (
                  <div key={cat} className="flex flex-col h-full bg-slate-900/50 rounded-2xl border border-slate-800 p-4">
-                     <h3 className="text-center font-black text-brazil-yellow uppercase tracking-widest mb-4 border-b border-slate-800 pb-2">{cat}</h3>
+                     <h3 className="text-center font-black text-brazil-yellow uppercase tracking-widest mb-4 border-b border-slate-800 pb-2 flex-none">{cat}</h3>
                      
-                     {/* Mini Partition Stats */}
-                     <div className="mb-4 bg-slate-800 p-3 rounded-xl flex justify-between items-center">
+                     {/* Mini Partition Stats - Fixed so it doesn't shrink */}
+                     <div className="mb-4 bg-slate-800 p-3 rounded-xl flex justify-between items-center flex-none">
                          <div>
                              <p className="text-[10px] text-slate-400 uppercase">Win Rate</p>
                              <p className="text-lg font-bold text-white">{getPartitionStats(cat).winRate}%</p>
@@ -558,7 +558,8 @@ export const App: React.FC = () => {
                          </div>
                      </div>
 
-                     <div className="space-y-4 overflow-y-auto max-h-[600px] scrollbar-hide">
+                     {/* Scrollable List inside the column - Removed max-h, using flex-1 */}
+                     <div className="space-y-4 overflow-y-auto scrollbar-hide flex-1 pr-1">
                          {getFilteredTips(cat).length === 0 ? <p className="text-center text-slate-600 text-sm italic py-10">No active tips</p> : 
                             getFilteredTips(cat).map(tip => <TipCard key={tip.id} tip={tip} isAdmin={user?.role === UserRole.ADMIN} onVote={handleVote} onSettle={handleSettleTip} onDelete={handleDeleteTip} onVerify={handleVerifyTip}/>)
                          }
