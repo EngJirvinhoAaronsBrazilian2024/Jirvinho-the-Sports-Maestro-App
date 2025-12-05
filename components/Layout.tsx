@@ -42,7 +42,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, active
 
       {/* Sidebar (Desktop) / Bottom Nav (Mobile) */}
       <nav className="fixed bottom-0 w-full md:relative md:w-64 md:h-screen bg-slate-950 border-t md:border-t-0 md:border-r border-slate-800 flex md:flex-col justify-between z-40 pb-safe md:pb-0 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.3)] md:shadow-none">
-        <div className="md:p-6 flex flex-row md:flex-col w-full md:space-y-8 overflow-x-auto md:overflow-visible no-scrollbar">
+        <div className="md:p-6 flex flex-row md:flex-col w-full md:space-y-8">
            <div className="hidden md:block">
             <h1 className="text-2xl font-black italic tracking-tighter text-white">
               JIRVINHO
@@ -51,45 +51,55 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, active
            </div>
 
            {/* Navigation Items Container */}
-           <div className="flex flex-row md:flex-col min-w-full md:min-w-0 md:space-y-2 p-2 md:p-0 items-center md:items-stretch justify-start gap-4 md:gap-2 px-4 md:px-0">
+           <div className="flex flex-row md:flex-col w-full md:w-auto p-1 md:p-0 items-center md:items-stretch justify-between md:justify-start gap-1 md:gap-2">
               <button 
                 onClick={() => setActiveTab('dashboard')}
-                className={`flex-none p-2 md:p-3 rounded-xl flex flex-col md:flex-row items-center justify-center md:justify-start md:space-x-3 transition-colors ${activeTab === 'dashboard' ? 'bg-slate-800 text-brazil-yellow' : 'text-slate-400 hover:text-slate-200'}`}
+                className={`flex-1 md:flex-none p-2 md:p-3 rounded-xl flex flex-col md:flex-row items-center justify-center md:justify-start md:space-x-3 transition-colors ${activeTab === 'dashboard' ? 'bg-slate-800 text-brazil-yellow' : 'text-slate-400 hover:text-slate-200'}`}
               >
-                <LayoutDashboard size={22} className="md:w-6 md:h-6" />
+                <LayoutDashboard size={20} className="md:w-6 md:h-6" />
                 <span className="text-[10px] md:text-base mt-1 md:mt-0 font-medium whitespace-nowrap">Tips</span>
               </button>
               
               <button 
                 onClick={() => setActiveTab('stats')}
-                className={`flex-none p-2 md:p-3 rounded-xl flex flex-col md:flex-row items-center justify-center md:justify-start md:space-x-3 transition-colors ${activeTab === 'stats' ? 'bg-slate-800 text-brazil-yellow' : 'text-slate-400 hover:text-slate-200'}`}
+                className={`flex-1 md:flex-none p-2 md:p-3 rounded-xl flex flex-col md:flex-row items-center justify-center md:justify-start md:space-x-3 transition-colors ${activeTab === 'stats' ? 'bg-slate-800 text-brazil-yellow' : 'text-slate-400 hover:text-slate-200'}`}
               >
-                <BarChart3 size={22} className="md:w-6 md:h-6" />
+                <BarChart3 size={20} className="md:w-6 md:h-6" />
                 <span className="text-[10px] md:text-base mt-1 md:mt-0 font-medium whitespace-nowrap">Stats</span>
               </button>
 
               <button 
                  onClick={() => setActiveTab('news')}
-                 className={`flex-none p-2 md:p-3 rounded-xl flex flex-col md:flex-row items-center justify-center md:justify-start md:space-x-3 transition-colors ${activeTab === 'news' ? 'bg-slate-800 text-brazil-yellow' : 'text-slate-400 hover:text-slate-200'}`}
+                 className={`flex-1 md:flex-none p-2 md:p-3 rounded-xl flex flex-col md:flex-row items-center justify-center md:justify-start md:space-x-3 transition-colors ${activeTab === 'news' ? 'bg-slate-800 text-brazil-yellow' : 'text-slate-400 hover:text-slate-200'}`}
               >
-                <Newspaper size={22} className="md:w-6 md:h-6" />
+                <Newspaper size={20} className="md:w-6 md:h-6" />
                 <span className="text-[10px] md:text-base mt-1 md:mt-0 font-medium whitespace-nowrap">News</span>
               </button>
 
+              <a 
+                 href="https://www.flashscore.mobi/" 
+                 target="_blank" 
+                 rel="noopener noreferrer"
+                 className="flex-1 md:flex-none p-2 md:p-3 rounded-xl flex flex-col md:flex-row items-center justify-center md:justify-start md:space-x-3 text-slate-400 hover:text-slate-200 transition-colors"
+              >
+                <Activity size={20} className="md:w-6 md:h-6" />
+                <span className="text-[10px] md:text-base mt-1 md:mt-0 font-medium whitespace-nowrap">Scores</span>
+              </a>
+
               <button 
                 onClick={() => setActiveTab('contact')}
-                className={`flex-none p-2 md:p-3 rounded-xl flex flex-col md:flex-row items-center justify-center md:justify-start md:space-x-3 transition-colors ${activeTab === 'contact' ? 'bg-slate-800 text-brazil-yellow' : 'text-slate-400 hover:text-slate-200'}`}
+                className={`flex-1 md:flex-none p-2 md:p-3 rounded-xl flex flex-col md:flex-row items-center justify-center md:justify-start md:space-x-3 transition-colors ${activeTab === 'contact' ? 'bg-slate-800 text-brazil-yellow' : 'text-slate-400 hover:text-slate-200'}`}
               >
-                <MessageSquare size={22} className="md:w-6 md:h-6" />
+                <MessageSquare size={20} className="md:w-6 md:h-6" />
                 <span className="text-[10px] md:text-base mt-1 md:mt-0 font-medium whitespace-nowrap">{user?.role === UserRole.ADMIN ? 'Msgs' : 'Chat'}</span>
               </button>
 
               {user?.role === UserRole.ADMIN && (
                 <button 
                   onClick={() => setActiveTab('admin')}
-                  className={`flex-none p-2 md:p-3 rounded-xl flex flex-col md:flex-row items-center justify-center md:justify-start md:space-x-3 transition-colors ${activeTab === 'admin' ? 'bg-slate-800 text-brazil-yellow' : 'text-slate-400 hover:text-slate-200'}`}
+                  className={`flex-1 md:flex-none p-2 md:p-3 rounded-xl flex flex-col md:flex-row items-center justify-center md:justify-start md:space-x-3 transition-colors ${activeTab === 'admin' ? 'bg-slate-800 text-brazil-yellow' : 'text-slate-400 hover:text-slate-200'}`}
                 >
-                  <Settings size={22} className="md:w-6 md:h-6" />
+                  <Settings size={20} className="md:w-6 md:h-6" />
                   <span className="text-[10px] md:text-base mt-1 md:mt-0 font-medium whitespace-nowrap">Panel</span>
                 </button>
               )}
