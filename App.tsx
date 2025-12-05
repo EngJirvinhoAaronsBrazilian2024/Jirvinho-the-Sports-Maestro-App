@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { User, UserRole, Tip, NewsPost, MaestroStats, TipStatus, TipCategory, TipLeg, Message } from './types';
+import { User, UserRole, Tip, NewsPost, MaestroStats, TipStatus, TipCategory, TipLeg, Message, LiveMatch } from './types';
 import { dbService } from './services/db';
 import { generateMatchAnalysis, checkBetResult } from './services/geminiService';
+import { liveScoreService } from './services/liveScoreService';
 import { Layout } from './components/Layout';
 import { TipCard } from './components/TipCard';
 import { StatsWidget } from './components/StatsWidget';
+import { LiveScoreBoard } from './components/LiveScoreBoard';
 import { PlayCircle, Lock, Mail, ChevronRight, Plus, Trash2, Save, FileText, Check, X, RefreshCw, Smartphone, TrendingUp, Award, Target, UserPlus, XCircle, Trophy, Flame, Eye, EyeOff, MessageSquare, Send, Globe, Newspaper, Calendar, Database, Wand2, Upload } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend } from 'recharts';
 
@@ -42,6 +44,10 @@ export const App: React.FC = () => {
   const [news, setNews] = useState<NewsPost[]>([]);
   const [stats, setStats] = useState<MaestroStats>({ winRate: 0, totalTips: 0, wonTips: 0, streak: [] });
   const [messages, setMessages] = useState<Message[]>([]);
+  
+  // Live Score State
+  const [liveMatches, setLiveMatches] = useState<LiveMatch[]>([]);
+  const [liveScoresLoading, setLiveScoresLoading] = useState(false);
 
   // Dashboard Specific State
   const [mobileTab, setMobileTab] = useState<TipCategory>(TipCategory.SINGLE);
@@ -79,12 +85,18 @@ export const App: React.FC = () => {
     const interval = setInterval(() => {
        if(user) fetchData(); 
     }, 15000);
+    
+    // Live Score Polling Interval (Only if on scores tab)
+    const scoreInterval = setInterval(() => {
+        if(user && activeTab === 'scores') fetchLiveScores();
+    }, 30000); // Update every 30s
 
     return () => {
         authListener.subscription.unsubscribe();
         clearInterval(interval);
+        clearInterval(scoreInterval);
     };
-  }, [user?.uid]);
+  }, [user?.uid, activeTab]);
 
   const fetchData = async () => {
     try {
@@ -105,6 +117,24 @@ export const App: React.FC = () => {
         console.error("Error fetching data:", error);
     }
   };
+  
+  const fetchLiveScores = async () => {
+      // Don't show loading spinner on background updates
+      if(liveMatches.length === 0) setLiveScoresLoading(true);
+      try {
+          const matches = await liveScoreService.getLiveMatches();
+          setLiveMatches(matches);
+      } catch (e) {
+          console.error("Score fetch failed", e);
+      } finally {
+          setLiveScoresLoading(false);
+      }
+  };
+  
+  // Trigger score fetch when tab changes to scores
+  useEffect(() => {
+      if(activeTab === 'scores') fetchLiveScores();
+  }, [activeTab]);
 
   // --- Auth Handlers ---
 
@@ -589,6 +619,23 @@ export const App: React.FC = () => {
               </div>
           </div>
         </div>
+      )}
+      
+      {/* --- LIVE SCORES PAGE --- */}
+      {activeTab === 'scores' && (
+          <div className="space-y-6">
+              <header className="flex justify-between items-center">
+                  <div>
+                      <h2 className="text-3xl font-black text-white italic tracking-tight">LIVE <span className="text-brazil-green">SCORES</span></h2>
+                      <p className="text-slate-400 text-sm">Real-time match updates from around the globe.</p>
+                  </div>
+                  <div className="bg-red-500/10 text-red-500 px-3 py-1 rounded-full text-xs font-bold animate-pulse flex items-center">
+                      <span className="w-2 h-2 bg-red-500 rounded-full mr-2"></span> LIVE
+                  </div>
+              </header>
+              
+              <LiveScoreBoard matches={liveMatches} loading={liveScoresLoading} />
+          </div>
       )}
 
       {/* --- STATS PAGE --- */}

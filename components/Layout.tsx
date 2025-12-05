@@ -1,5 +1,5 @@
 import React from 'react';
-import { LogOut, LayoutDashboard, Newspaper, Settings, BarChart3, ChevronLeft, MessageSquare } from 'lucide-react';
+import { LogOut, LayoutDashboard, Newspaper, Settings, BarChart3, ChevronLeft, MessageSquare, Activity } from 'lucide-react';
 import { User, UserRole } from '../types';
 
 interface LayoutProps {
@@ -56,7 +56,15 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, active
                 className={`p-2 md:p-3 rounded-xl flex flex-col md:flex-row items-center md:space-x-3 transition-colors ${activeTab === 'dashboard' ? 'bg-slate-800 text-brazil-yellow' : 'text-slate-400 hover:text-slate-200'}`}
               >
                 <LayoutDashboard size={22} className="md:w-6 md:h-6" />
-                <span className="text-[10px] md:text-base mt-1 md:mt-0 font-medium">Dashboard</span>
+                <span className="text-[10px] md:text-base mt-1 md:mt-0 font-medium">Tips</span>
+              </button>
+
+              <button 
+                onClick={() => setActiveTab('scores')}
+                className={`p-2 md:p-3 rounded-xl flex flex-col md:flex-row items-center md:space-x-3 transition-colors ${activeTab === 'scores' ? 'bg-slate-800 text-brazil-yellow' : 'text-slate-400 hover:text-slate-200'}`}
+              >
+                <Activity size={22} className="md:w-6 md:h-6" />
+                <span className="text-[10px] md:text-base mt-1 md:mt-0 font-medium">Scores</span>
               </button>
               
               <button 
