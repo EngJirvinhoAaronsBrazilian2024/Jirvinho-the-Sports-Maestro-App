@@ -1,8 +1,7 @@
 
 export enum UserRole {
   ADMIN = 'ADMIN',
-  USER = 'USER',
-  GUEST = 'GUEST'
+  USER = 'USER'
 }
 
 export interface User {
@@ -83,30 +82,4 @@ export interface MaestroStats {
   totalTips: number;
   wonTips: number;
   streak: TipStatus[]; // Last 10
-}
-
-// --- LIVE SCORE TYPES ---
-
-export type MatchStatus = 'LIVE' | 'FINISHED' | 'UPCOMING' | 'HT' | 'POSTP';
-
-export interface MatchEvent {
-  minute: number;
-  type: 'goal' | 'card' | 'sub';
-  player: string;
-  team: 'home' | 'away';
-  detail?: string; // e.g. "Red Card" or "Penalty"
-}
-
-export interface LiveMatch {
-  id: string;
-  league: string;
-  homeTeam: string;
-  awayTeam: string;
-  homeScore: number;
-  awayScore: number;
-  status: MatchStatus;
-  minute?: number; // Only for live
-  kickoffTime: string;
-  events: MatchEvent[];
-  logo?: string; // Optional league logo placeholder
 }

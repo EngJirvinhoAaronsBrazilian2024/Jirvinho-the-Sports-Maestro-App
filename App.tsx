@@ -5,7 +5,7 @@ import { generateMatchAnalysis, checkBetResult } from './services/geminiService'
 import { Layout } from './components/Layout';
 import { TipCard } from './components/TipCard';
 import { StatsWidget } from './components/StatsWidget';
-import { PlayCircle, Lock, Mail, ChevronRight, Plus, Trash2, Save, FileText, Check, X, RefreshCw, Smartphone, TrendingUp, Award, Target, UserPlus, XCircle, Trophy, Flame, Eye, EyeOff, MessageSquare, Send, Globe, Newspaper, Calendar, Database, Wand2, Upload, User as UserIcon } from 'lucide-react';
+import { PlayCircle, Lock, Mail, ChevronRight, Plus, Trash2, Save, FileText, Check, X, RefreshCw, Smartphone, TrendingUp, Award, Target, UserPlus, XCircle, Trophy, Flame, Eye, EyeOff, MessageSquare, Send, Globe, Newspaper, Calendar, Database, Wand2, Upload } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend } from 'recharts';
 
 // --- Constants ---
@@ -111,17 +111,6 @@ export const App: React.FC = () => {
 
   // --- Auth Handlers ---
 
-  const handleGuestAccess = () => {
-      const guestUser: User = {
-          uid: 'guest-user',
-          email: 'guest@jirvinho.com',
-          role: UserRole.GUEST,
-          displayName: 'Guest Fan'
-      };
-      setUser(guestUser);
-      fetchData(guestUser);
-  };
-
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError('');
@@ -148,12 +137,6 @@ export const App: React.FC = () => {
   };
 
   const handleLogout = async () => {
-    if (user?.role === UserRole.GUEST) {
-        setUser(null);
-        setTips([]);
-        setNews([]);
-        return;
-    }
     await dbService.logout();
     setUser(null);
     setTips([]);
@@ -489,16 +472,6 @@ export const App: React.FC = () => {
               }
             </button>
           </form>
-
-          {/* GUEST ACCESS BUTTON */}
-          <div className="mt-4 pt-4 border-t border-slate-800">
-             <button 
-                onClick={handleGuestAccess}
-                className="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-3 rounded-xl transition-colors flex items-center justify-center border border-slate-700 hover:border-slate-500"
-             >
-                <UserIcon size={18} className="mr-2" /> Continue as Guest (No Login)
-             </button>
-          </div>
 
           <div className="mt-6 flex flex-col space-y-2 text-center text-sm">
              {authMode === 'login' ? (
