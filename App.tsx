@@ -701,12 +701,13 @@ export const App: React.FC = () => {
                  rel="noopener noreferrer"
                  className="flex items-center text-xs bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg transition-colors border border-slate-600"
               >
-                 <ExternalLink size={14} className="mr-1"/> Open in Browser
+                 <ExternalLink size={14} className="mr-1"/> Open Flashscore
               </a>
           </div>
           <div className="flex-1 bg-white rounded-2xl overflow-hidden shadow-xl border border-slate-700 relative min-h-[75vh]">
+             {/* Uses ScoreAxis widget which allows embedding via iframe */}
              <iframe 
-                src="https://www.flashscore.mobi/" 
+                src="https://www.scoreaxis.com/widget/live-matches" 
                 className="w-full h-full border-0"
                 title="Live Scores"
                 allowFullScreen
