@@ -1,36 +1,9 @@
 import { supabase } from './supabaseClient';
 import { Tip, TipStatus, NewsPost, User, UserRole, MaestroStats, TipCategory, Message } from '../types';
-import { Session } from '@supabase/supabase-js';
 
 class DBService {
   
   // --- AUTH ---
-
-  // Add a listener for auth state changes (crucial for OAuth redirects)
-  onAuthStateChange(callback: (user: User | null) => void) {
-    return supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log("Auth State Changed:", event, session?.user?.email);
-      
-      if (session?.user) {
-        // Fetch profile to get role
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single();
-
-        const user: User = {
-          uid: session.user.id,
-          email: session.user.email!,
-          role: (profile?.role as UserRole) || UserRole.USER,
-          displayName: profile?.display_name || session.user.user_metadata.displayName || 'User'
-        };
-        callback(user);
-      } else {
-        callback(null);
-      }
-    });
-  }
 
   async getCurrentUser(): Promise<User | null> {
     const { data: { session } } = await supabase.auth.getSession();
@@ -73,21 +46,6 @@ class DBService {
     if (error) throw error;
     if (!data.user) throw new Error("Signup failed");
     return { uid: data.user.id, email: email, role: UserRole.USER, displayName };
-  }
-
-  async loginWithGoogle(): Promise<void> {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        // Redirect to the current URL. Supabase will append tokens.
-        redirectTo: window.location.href, 
-        queryParams: {
-          access_type: 'offline',
-          prompt: 'consent',
-        },
-      },
-    });
-    if (error) throw error;
   }
 
   async logout(): Promise<void> {
@@ -322,8 +280,6 @@ class DBService {
       });
 
       // 2. Seed Tips
-      // Removed 'status' and 'votes' because they are not in the Omit signature of addTip
-      // They are set automatically inside addTip method.
       await this.addTip({
           category: TipCategory.SINGLE,
           teams: "Man City vs Arsenal",
