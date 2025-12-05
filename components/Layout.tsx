@@ -59,17 +59,6 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, active
                 <LayoutDashboard size={22} className="md:w-6 md:h-6" />
                 <span className="text-[10px] md:text-base mt-1 md:mt-0 font-medium whitespace-nowrap">Tips</span>
               </button>
-
-              <button 
-                onClick={() => setActiveTab('scores')}
-                className={`flex-none p-2 md:p-3 rounded-xl flex flex-col md:flex-row items-center justify-center md:justify-start md:space-x-3 transition-colors relative ${activeTab === 'scores' ? 'bg-slate-800 text-brazil-yellow' : 'text-slate-400 hover:text-slate-200'}`}
-              >
-                <div className="relative">
-                  <Activity size={22} className="md:w-6 md:h-6" />
-                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse border-2 border-slate-950"></span>
-                </div>
-                <span className="text-[10px] md:text-base mt-1 md:mt-0 font-medium whitespace-nowrap">Scores</span>
-              </button>
               
               <button 
                 onClick={() => setActiveTab('stats')}
