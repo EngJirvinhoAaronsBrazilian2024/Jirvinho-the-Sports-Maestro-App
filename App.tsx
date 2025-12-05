@@ -74,27 +74,37 @@ export const App: React.FC = () => {
   // --- Effects ---
 
   useEffect(() => {
-    // Subscribe to Auth Changes
+    // 1. Subscribe to Auth Changes
     const { data: authListener } = dbService.onAuthStateChange((newUser) => {
         setUser(newUser);
         setLoading(false);
         if (newUser) fetchData(newUser);
     });
 
-    // Initial Data Fetch Interval
+    // 2. Initial Data Fetch Interval
     const interval = setInterval(() => {
        if(user) fetchData(user); 
     }, 15000);
     
-    // Live Score Polling Interval (Only if on scores tab)
+    // 3. Live Score Polling Interval (Only if on scores tab)
     const scoreInterval = setInterval(() => {
         if(user && activeTab === 'scores') fetchLiveScores();
     }, 30000); // Update every 30s
+
+    // 4. SAFETY TIMEOUT: If auth check hangs for more than 1s, stop loading to show Login/Home
+    // This fixes the "delaying to see login page" issue.
+    const loadingTimeout = setTimeout(() => {
+        setLoading((currentLoading) => {
+            if (currentLoading) return false;
+            return currentLoading;
+        });
+    }, 1000);
 
     return () => {
         authListener.subscription.unsubscribe();
         clearInterval(interval);
         clearInterval(scoreInterval);
+        clearTimeout(loadingTimeout);
     };
   }, [user?.uid, activeTab]);
 

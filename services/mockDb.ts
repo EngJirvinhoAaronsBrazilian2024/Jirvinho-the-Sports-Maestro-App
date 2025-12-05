@@ -100,64 +100,51 @@ class MockDBService {
   }
 
   async login(email: string, password: string): Promise<User> {
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        // Admin Credentials
-        if (email === 'admin@jirvinho.com' && password === 'admin123') {
-          const user: User = { uid: 'admin_001', email, role: UserRole.ADMIN, displayName: 'The Maestro' };
-          sessionStorage.setItem(this.userKey, JSON.stringify(user));
-          resolve(user);
-        } else if (email === 'user@test.com' && password === 'user123') {
-          const user: User = { uid: 'user_001', email, role: UserRole.USER, displayName: 'Sports Fan' };
-          sessionStorage.setItem(this.userKey, JSON.stringify(user));
-          resolve(user);
-        } else {
-             const storedUser = localStorage.getItem(`user_${email}`);
-             if (storedUser) {
-                 const u = JSON.parse(storedUser);
-                 if (u.password === password) {
-                     const sessionUser: User = { uid: u.uid, email: u.email, role: u.role, displayName: u.displayName };
-                     sessionStorage.setItem(this.userKey, JSON.stringify(sessionUser));
-                     resolve(sessionUser);
-                     return;
-                 }
+    // Instant login (removed setTimeout)
+    if (email === 'admin@jirvinho.com' && password === 'admin123') {
+      const user: User = { uid: 'admin_001', email, role: UserRole.ADMIN, displayName: 'The Maestro' };
+      sessionStorage.setItem(this.userKey, JSON.stringify(user));
+      return user;
+    } else if (email === 'user@test.com' && password === 'user123') {
+      const user: User = { uid: 'user_001', email, role: UserRole.USER, displayName: 'Sports Fan' };
+      sessionStorage.setItem(this.userKey, JSON.stringify(user));
+      return user;
+    } else {
+         const storedUser = localStorage.getItem(`user_${email}`);
+         if (storedUser) {
+             const u = JSON.parse(storedUser);
+             if (u.password === password) {
+                 const sessionUser: User = { uid: u.uid, email: u.email, role: u.role, displayName: u.displayName };
+                 sessionStorage.setItem(this.userKey, JSON.stringify(sessionUser));
+                 return sessionUser;
              }
-             reject(new Error('Invalid credentials.'));
-        }
-      }, 800);
-    });
+         }
+         throw new Error('Invalid credentials.');
+    }
   }
 
   async signUp(email: string, password: string, displayName: string): Promise<User> {
-      return new Promise((resolve, reject) => {
-          setTimeout(() => {
-              if (email === 'admin@jirvinho.com' || email === 'user@test.com') {
-                  reject(new Error('User already exists.'));
-                  return;
-              }
-              const newUser = {
-                  uid: 'user_' + Math.random().toString(36).substr(2, 9),
-                  email,
-                  password, 
-                  role: UserRole.USER,
-                  displayName
-              };
-              localStorage.setItem(`user_${email}`, JSON.stringify(newUser));
-              
-              const sessionUser: User = { uid: newUser.uid, email: newUser.email, role: newUser.role, displayName: newUser.displayName };
-              sessionStorage.setItem(this.userKey, JSON.stringify(sessionUser));
-              resolve(sessionUser);
-          }, 1000);
-      });
+      // Instant signup (removed setTimeout)
+      if (email === 'admin@jirvinho.com' || email === 'user@test.com') {
+          throw new Error('User already exists.');
+      }
+      const newUser = {
+          uid: 'user_' + Math.random().toString(36).substr(2, 9),
+          email,
+          password, 
+          role: UserRole.USER,
+          displayName
+      };
+      localStorage.setItem(`user_${email}`, JSON.stringify(newUser));
+      
+      const sessionUser: User = { uid: newUser.uid, email: newUser.email, role: newUser.role, displayName: newUser.displayName };
+      sessionStorage.setItem(this.userKey, JSON.stringify(sessionUser));
+      return sessionUser;
   }
 
   async resetPassword(email: string): Promise<void> {
-      return new Promise((resolve) => {
-          setTimeout(() => {
-              console.log(`Password reset link sent to ${email}`);
-              resolve();
-          }, 1500);
-      });
+      console.log(`Password reset link sent to ${email}`);
+      return Promise.resolve();
   }
 
   logout() {
