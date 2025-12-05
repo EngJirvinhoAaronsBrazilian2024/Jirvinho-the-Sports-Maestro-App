@@ -151,16 +151,6 @@ class MockDBService {
       });
   }
 
-  async loginWithGoogle(): Promise<User> {
-    return new Promise((resolve) => {
-        setTimeout(() => {
-            const user: User = { uid: 'google_user_001', email: 'google@user.com', role: UserRole.USER, displayName: 'Google User' };
-            sessionStorage.setItem(this.userKey, JSON.stringify(user));
-            resolve(user);
-        }, 1000);
-    });
-  }
-
   async resetPassword(email: string): Promise<void> {
       return new Promise((resolve) => {
           setTimeout(() => {
