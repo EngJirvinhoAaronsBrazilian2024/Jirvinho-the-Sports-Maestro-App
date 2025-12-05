@@ -30,7 +30,7 @@ const STATIC_TICKER_ITEMS = [
 export const App: React.FC = () => {
   // Auth State
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'signup' | 'forgot'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -77,7 +77,6 @@ export const App: React.FC = () => {
     // 1. Subscribe to Auth Changes
     const { data: authListener } = dbService.onAuthStateChange((newUser) => {
         setUser(newUser);
-        setLoading(false);
         if (newUser) fetchData(newUser);
     });
 
@@ -91,20 +90,10 @@ export const App: React.FC = () => {
         if(user && activeTab === 'scores') fetchLiveScores();
     }, 30000); // Update every 30s
 
-    // 4. SAFETY TIMEOUT: If auth check hangs for more than 1s, stop loading to show Login/Home
-    // This fixes the "delaying to see login page" issue.
-    const loadingTimeout = setTimeout(() => {
-        setLoading((currentLoading) => {
-            if (currentLoading) return false;
-            return currentLoading;
-        });
-    }, 1000);
-
     return () => {
         authListener.subscription.unsubscribe();
         clearInterval(interval);
         clearInterval(scoreInterval);
-        clearTimeout(loadingTimeout);
     };
   }, [user?.uid, activeTab]);
 
@@ -170,6 +159,7 @@ export const App: React.FC = () => {
          return;
       }
       // Note: onAuthStateChange will handle setting the user
+      setLoading(false);
     } catch (err: any) {
       setAuthError(err.message || 'Authentication failed');
       setLoading(false);
@@ -416,15 +406,6 @@ export const App: React.FC = () => {
   };
 
   // --- Render Sections ---
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center space-y-4">
-        <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-brazil-green"></div>
-        <p className="text-slate-400 text-sm animate-pulse">Connecting to Stadium...</p>
-      </div>
-    );
-  }
 
   // --- Login Screen ---
   if (!user) {
