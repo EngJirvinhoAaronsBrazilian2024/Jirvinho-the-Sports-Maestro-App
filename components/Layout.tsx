@@ -51,10 +51,10 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, active
            </div>
 
            {/* Navigation Items Container */}
-           <div className="flex flex-row md:flex-col min-w-full md:min-w-0 md:space-y-2 p-2 md:p-0 items-center md:items-stretch justify-between md:justify-start gap-1 md:gap-2">
+           <div className="flex flex-row md:flex-col min-w-full md:min-w-0 md:space-y-2 p-2 md:p-0 items-center md:items-stretch justify-start gap-4 md:gap-2 px-4 md:px-0">
               <button 
                 onClick={() => setActiveTab('dashboard')}
-                className={`flex-1 md:flex-none p-2 md:p-3 rounded-xl flex flex-col md:flex-row items-center justify-center md:justify-start md:space-x-3 transition-colors ${activeTab === 'dashboard' ? 'bg-slate-800 text-brazil-yellow' : 'text-slate-400 hover:text-slate-200'}`}
+                className={`flex-none p-2 md:p-3 rounded-xl flex flex-col md:flex-row items-center justify-center md:justify-start md:space-x-3 transition-colors ${activeTab === 'dashboard' ? 'bg-slate-800 text-brazil-yellow' : 'text-slate-400 hover:text-slate-200'}`}
               >
                 <LayoutDashboard size={22} className="md:w-6 md:h-6" />
                 <span className="text-[10px] md:text-base mt-1 md:mt-0 font-medium whitespace-nowrap">Tips</span>
@@ -62,7 +62,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, active
 
               <button 
                 onClick={() => setActiveTab('scores')}
-                className={`flex-1 md:flex-none p-2 md:p-3 rounded-xl flex flex-col md:flex-row items-center justify-center md:justify-start md:space-x-3 transition-colors relative ${activeTab === 'scores' ? 'bg-slate-800 text-brazil-yellow' : 'text-slate-400 hover:text-slate-200'}`}
+                className={`flex-none p-2 md:p-3 rounded-xl flex flex-col md:flex-row items-center justify-center md:justify-start md:space-x-3 transition-colors relative ${activeTab === 'scores' ? 'bg-slate-800 text-brazil-yellow' : 'text-slate-400 hover:text-slate-200'}`}
               >
                 <div className="relative">
                   <Activity size={22} className="md:w-6 md:h-6" />
@@ -73,7 +73,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, active
               
               <button 
                 onClick={() => setActiveTab('stats')}
-                className={`flex-1 md:flex-none p-2 md:p-3 rounded-xl flex flex-col md:flex-row items-center justify-center md:justify-start md:space-x-3 transition-colors ${activeTab === 'stats' ? 'bg-slate-800 text-brazil-yellow' : 'text-slate-400 hover:text-slate-200'}`}
+                className={`flex-none p-2 md:p-3 rounded-xl flex flex-col md:flex-row items-center justify-center md:justify-start md:space-x-3 transition-colors ${activeTab === 'stats' ? 'bg-slate-800 text-brazil-yellow' : 'text-slate-400 hover:text-slate-200'}`}
               >
                 <BarChart3 size={22} className="md:w-6 md:h-6" />
                 <span className="text-[10px] md:text-base mt-1 md:mt-0 font-medium whitespace-nowrap">Stats</span>
@@ -81,7 +81,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, active
 
               <button 
                  onClick={() => setActiveTab('news')}
-                 className={`flex-1 md:flex-none p-2 md:p-3 rounded-xl flex flex-col md:flex-row items-center justify-center md:justify-start md:space-x-3 transition-colors ${activeTab === 'news' ? 'bg-slate-800 text-brazil-yellow' : 'text-slate-400 hover:text-slate-200'}`}
+                 className={`flex-none p-2 md:p-3 rounded-xl flex flex-col md:flex-row items-center justify-center md:justify-start md:space-x-3 transition-colors ${activeTab === 'news' ? 'bg-slate-800 text-brazil-yellow' : 'text-slate-400 hover:text-slate-200'}`}
               >
                 <Newspaper size={22} className="md:w-6 md:h-6" />
                 <span className="text-[10px] md:text-base mt-1 md:mt-0 font-medium whitespace-nowrap">News</span>
@@ -89,7 +89,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, active
 
               <button 
                 onClick={() => setActiveTab('contact')}
-                className={`flex-1 md:flex-none p-2 md:p-3 rounded-xl flex flex-col md:flex-row items-center justify-center md:justify-start md:space-x-3 transition-colors ${activeTab === 'contact' ? 'bg-slate-800 text-brazil-yellow' : 'text-slate-400 hover:text-slate-200'}`}
+                className={`flex-none p-2 md:p-3 rounded-xl flex flex-col md:flex-row items-center justify-center md:justify-start md:space-x-3 transition-colors ${activeTab === 'contact' ? 'bg-slate-800 text-brazil-yellow' : 'text-slate-400 hover:text-slate-200'}`}
               >
                 <MessageSquare size={22} className="md:w-6 md:h-6" />
                 <span className="text-[10px] md:text-base mt-1 md:mt-0 font-medium whitespace-nowrap">{user?.role === UserRole.ADMIN ? 'Msgs' : 'Chat'}</span>
@@ -98,7 +98,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, active
               {user?.role === UserRole.ADMIN && (
                 <button 
                   onClick={() => setActiveTab('admin')}
-                  className={`flex-1 md:flex-none p-2 md:p-3 rounded-xl flex flex-col md:flex-row items-center justify-center md:justify-start md:space-x-3 transition-colors ${activeTab === 'admin' ? 'bg-slate-800 text-brazil-yellow' : 'text-slate-400 hover:text-slate-200'}`}
+                  className={`flex-none p-2 md:p-3 rounded-xl flex flex-col md:flex-row items-center justify-center md:justify-start md:space-x-3 transition-colors ${activeTab === 'admin' ? 'bg-slate-800 text-brazil-yellow' : 'text-slate-400 hover:text-slate-200'}`}
                 >
                   <Settings size={22} className="md:w-6 md:h-6" />
                   <span className="text-[10px] md:text-base mt-1 md:mt-0 font-medium whitespace-nowrap">Panel</span>

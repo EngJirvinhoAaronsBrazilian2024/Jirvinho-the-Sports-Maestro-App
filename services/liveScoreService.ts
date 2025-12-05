@@ -84,8 +84,8 @@ class LiveScoreService {
   ];
 
   async getLiveMatches(): Promise<LiveMatch[]> {
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 500));
+    // No simulated delay for instant feel
+    // await new Promise(resolve => setTimeout(resolve, 100));
 
     // Simulate "Live" updates to make the app feel dynamic
     this.matches = this.matches.map(match => {

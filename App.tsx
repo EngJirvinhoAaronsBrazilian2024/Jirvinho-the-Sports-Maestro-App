@@ -78,12 +78,12 @@ export const App: React.FC = () => {
     const { data: authListener } = dbService.onAuthStateChange((newUser) => {
         setUser(newUser);
         setLoading(false);
-        if (newUser) fetchData();
+        if (newUser) fetchData(newUser);
     });
 
     // Initial Data Fetch Interval
     const interval = setInterval(() => {
-       if(user) fetchData(); 
+       if(user) fetchData(user); 
     }, 15000);
     
     // Live Score Polling Interval (Only if on scores tab)
@@ -98,20 +98,24 @@ export const App: React.FC = () => {
     };
   }, [user?.uid, activeTab]);
 
-  const fetchData = async () => {
+  // Optimized Fetch Data (Parallel)
+  const fetchData = async (currentUser = user) => {
     try {
-        const _tips = await dbService.getTips();
-        setTips(_tips);
+        const [tipsData, newsData, statsData] = await Promise.all([
+            dbService.getTips(),
+            dbService.getNews(),
+            dbService.getStats()
+        ]);
         
-        const _news = await dbService.getNews();
-        setNews(_news);
-        
-        const _stats = await dbService.getStats();
-        setStats(_stats);
+        setTips(tipsData);
+        setNews(newsData);
+        setStats(statsData);
 
-        if (user) {
-            const _msgs = user.role === UserRole.ADMIN ? await dbService.getMessages() : await dbService.getUserMessages(user.uid);
-            setMessages(_msgs);
+        if (currentUser) {
+            const msgs = currentUser.role === UserRole.ADMIN 
+                ? await dbService.getMessages() 
+                : await dbService.getUserMessages(currentUser.uid);
+            setMessages(msgs);
         }
     } catch (error) {
         console.error("Error fetching data:", error);
@@ -405,8 +409,9 @@ export const App: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+      <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center space-y-4">
         <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-brazil-green"></div>
+        <p className="text-slate-400 text-sm animate-pulse">Connecting to Stadium...</p>
       </div>
     );
   }
