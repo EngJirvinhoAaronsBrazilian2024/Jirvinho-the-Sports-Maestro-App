@@ -76,15 +76,13 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, active
                 <span className="text-[10px] md:text-base mt-1 md:mt-0 font-medium whitespace-nowrap">News</span>
               </button>
 
-              <a 
-                 href="https://www.flashscore.mobi/" 
-                 target="_blank" 
-                 rel="noopener noreferrer"
-                 className="flex-1 md:flex-none p-2 md:p-3 rounded-xl flex flex-col md:flex-row items-center justify-center md:justify-start md:space-x-3 text-slate-400 hover:text-slate-200 transition-colors"
+              <button 
+                 onClick={() => setActiveTab('scores')}
+                 className={`flex-1 md:flex-none p-2 md:p-3 rounded-xl flex flex-col md:flex-row items-center justify-center md:justify-start md:space-x-3 transition-colors ${activeTab === 'scores' ? 'bg-slate-800 text-brazil-yellow' : 'text-slate-400 hover:text-slate-200'}`}
               >
                 <Activity size={20} className="md:w-6 md:h-6" />
                 <span className="text-[10px] md:text-base mt-1 md:mt-0 font-medium whitespace-nowrap">Scores</span>
-              </a>
+              </button>
 
               <button 
                 onClick={() => setActiveTab('contact')}

@@ -5,7 +5,7 @@ import { generateMatchAnalysis, checkBetResult } from './services/geminiService'
 import { Layout } from './components/Layout';
 import { TipCard } from './components/TipCard';
 import { StatsWidget } from './components/StatsWidget';
-import { PlayCircle, Lock, Mail, ChevronRight, Plus, Trash2, Save, FileText, Check, X, RefreshCw, Smartphone, TrendingUp, Award, Target, UserPlus, XCircle, Trophy, Flame, Eye, EyeOff, MessageSquare, Send, Globe, Newspaper, Calendar, Database, Wand2, Upload } from 'lucide-react';
+import { PlayCircle, Lock, Mail, ChevronRight, Plus, Trash2, Save, FileText, Check, X, RefreshCw, Smartphone, TrendingUp, Award, Target, UserPlus, XCircle, Trophy, Flame, Eye, EyeOff, MessageSquare, Send, Globe, Newspaper, Calendar, Database, Wand2, Upload, ExternalLink } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend } from 'recharts';
 
 // --- Constants ---
@@ -686,6 +686,33 @@ export const App: React.FC = () => {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* --- SCORES PAGE (EMBED) --- */}
+      {activeTab === 'scores' && (
+        <div className="h-full flex flex-col">
+          <div className="flex justify-between items-center mb-4">
+              <h2 className="text-3xl font-black text-white italic tracking-tight">LIVE <span className="text-brazil-yellow">SCORES</span></h2>
+              <a 
+                 href="https://www.flashscore.mobi/" 
+                 target="_blank" 
+                 rel="noopener noreferrer"
+                 className="flex items-center text-xs bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg transition-colors border border-slate-600"
+              >
+                 <ExternalLink size={14} className="mr-1"/> Open in Browser
+              </a>
+          </div>
+          <div className="flex-1 bg-white rounded-2xl overflow-hidden shadow-xl border border-slate-700 relative min-h-[75vh]">
+             <iframe 
+                src="https://www.flashscore.mobi/" 
+                className="w-full h-full border-0"
+                title="Live Scores"
+                allowFullScreen
+                loading="lazy"
+                referrerPolicy="no-referrer"
+             />
           </div>
         </div>
       )}
