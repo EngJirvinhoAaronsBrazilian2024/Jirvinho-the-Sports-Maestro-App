@@ -68,27 +68,23 @@ export const App: React.FC = () => {
   // --- Effects ---
 
   useEffect(() => {
-    checkUser();
-    const interval = setInterval(() => {
-       fetchData(); 
-    }, 15000);
-    return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
-    if (user) fetchData();
-  }, [user]);
-
-  const checkUser = async () => {
-    try {
-        const currentUser = await dbService.getCurrentUser();
-        setUser(currentUser);
-    } catch (e) {
-        console.error("Auth check error", e);
-    } finally {
+    // Subscribe to Auth Changes
+    const { data: authListener } = dbService.onAuthStateChange((newUser) => {
+        setUser(newUser);
         setLoading(false);
-    }
-  };
+        if (newUser) fetchData();
+    });
+
+    // Initial Data Fetch Interval
+    const interval = setInterval(() => {
+       if(user) fetchData(); 
+    }, 15000);
+
+    return () => {
+        authListener.subscription.unsubscribe();
+        clearInterval(interval);
+    };
+  }, [user?.uid]);
 
   const fetchData = async () => {
     try {
@@ -129,24 +125,11 @@ export const App: React.FC = () => {
          setLoading(false);
          return;
       }
-      setUser(loggedUser);
+      // Note: onAuthStateChange will handle setting the user
     } catch (err: any) {
       setAuthError(err.message || 'Authentication failed');
-    } finally {
       setLoading(false);
     }
-  };
-
-  const handleGoogleLogin = async () => {
-      setLoading(true);
-      try {
-          await dbService.loginWithGoogle();
-          // Redirect happens automatically
-      } catch (e: any) {
-          console.error("Google Login Error:", e);
-          setAuthError('Google Login Failed. Ensure "Google" is enabled in Supabase Auth Providers.');
-          setLoading(false);
-      }
   };
 
   const handleLogout = async () => {
@@ -493,23 +476,6 @@ export const App: React.FC = () => {
               }
             </button>
           </form>
-
-          {authMode === 'login' && (
-              <div className="mt-4">
-                  <div className="relative flex py-2 items-center">
-                      <div className="flex-grow border-t border-slate-800"></div>
-                      <span className="flex-shrink-0 mx-4 text-slate-500 text-xs">OR</span>
-                      <div className="flex-grow border-t border-slate-800"></div>
-                  </div>
-                  <button 
-                    onClick={handleGoogleLogin}
-                    className="w-full bg-white text-slate-900 font-bold py-3 rounded-xl flex items-center justify-center hover:bg-slate-100 transition-colors"
-                  >
-                     <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-5 h-5 mr-2" alt="Google" />
-                     Continue with Google
-                  </button>
-              </div>
-          )}
 
           <div className="mt-6 flex flex-col space-y-2 text-center text-sm">
              {authMode === 'login' ? (

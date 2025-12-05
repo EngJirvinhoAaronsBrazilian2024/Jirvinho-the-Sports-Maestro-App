@@ -5,8 +5,42 @@ class DBService {
   
   // --- AUTH ---
 
+  // Add a listener for auth state changes
+  onAuthStateChange(callback: (user: User | null) => void) {
+    return supabase.auth.onAuthStateChange(async (event, session) => {
+      // console.log("Auth State Changed:", event, session?.user?.email);
+      
+      if (session?.user) {
+        // Fetch profile to get role
+        const { data: profile, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+
+        if (error) {
+             console.warn("Profile fetch warning:", error.message);
+        }
+
+        const user: User = {
+          uid: session.user.id,
+          email: session.user.email!,
+          role: (profile?.role as UserRole) || UserRole.USER,
+          displayName: profile?.display_name || session.user.user_metadata.displayName || 'User'
+        };
+        callback(user);
+      } else {
+        callback(null);
+      }
+    });
+  }
+
   async getCurrentUser(): Promise<User | null> {
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError) {
+        console.error("Session Check Error:", sessionError.message);
+        return null;
+    }
     if (!session?.user) return null;
 
     // Fetch profile for role
@@ -60,25 +94,30 @@ class DBService {
   // --- TIPS ---
 
   async getTips(): Promise<Tip[]> {
-    const { data, error } = await supabase
-      .from('tips')
-      .select('*')
-      .order('created_at', { ascending: false });
-    
-    if (error) {
-        console.error('SUPABASE TIPS FETCH ERROR:', error.message);
+    try {
+        const { data, error } = await supabase
+        .from('tips')
+        .select('*')
+        .order('created_at', { ascending: false });
+        
+        if (error) {
+            console.error('SUPABASE TIPS FETCH ERROR:', error.message);
+            return [];
+        }
+        
+        if (!data) return [];
+
+        return data.map((t: any) => ({
+        ...t,
+        kickoffTime: t.kickoff_time,
+        bettingCode: t.betting_code,
+        resultScore: t.result_score,
+        createdAt: t.created_at ? Number(t.created_at) : Date.now()
+        }));
+    } catch (err: any) {
+        console.error('Network/Fetch Error (Tips):', err.message);
         return [];
     }
-    
-    if (!data) return [];
-
-    return data.map((t: any) => ({
-      ...t,
-      kickoffTime: t.kickoff_time,
-      bettingCode: t.betting_code,
-      resultScore: t.result_score,
-      createdAt: t.created_at ? Number(t.created_at) : Date.now()
-    }));
   }
 
   async addTip(tip: Omit<Tip, 'id' | 'createdAt' | 'status' | 'votes'>): Promise<void> {
@@ -135,56 +174,66 @@ class DBService {
   // --- STATS ---
 
   async getStats(): Promise<MaestroStats> {
-    const { data: tips, error } = await supabase.from('tips').select('status, created_at').neq('status', 'PENDING');
-    
-    if (error) {
-        console.warn('Stats fetch warning:', error.message);
+    try {
+        const { data: tips, error } = await supabase.from('tips').select('status, created_at').neq('status', 'PENDING');
+        
+        if (error) {
+            console.warn('Stats fetch warning:', error.message);
+            return { winRate: 0, totalTips: 0, wonTips: 0, streak: [] };
+        }
+        
+        if (!tips) return { winRate: 0, totalTips: 0, wonTips: 0, streak: [] };
+
+        let wins = 0;
+        tips.forEach((t: any) => {
+        if (t.status === TipStatus.WON) wins++;
+        });
+
+        const winRate = tips.length > 0 ? (wins / tips.length) * 100 : 0;
+        const streak = tips
+            .sort((a: any, b: any) => (Number(b.created_at) || 0) - (Number(a.created_at) || 0))
+            .slice(0, 10)
+            .map((t: any) => t.status as TipStatus);
+
+        return {
+        winRate: parseFloat(winRate.toFixed(1)),
+        totalTips: tips.length,
+        wonTips: wins,
+        streak
+        };
+    } catch (err: any) {
+        console.error('Network/Fetch Error (Stats):', err.message);
         return { winRate: 0, totalTips: 0, wonTips: 0, streak: [] };
     }
-    
-    if (!tips) return { winRate: 0, totalTips: 0, wonTips: 0, streak: [] };
-
-    let wins = 0;
-    tips.forEach((t: any) => {
-      if (t.status === TipStatus.WON) wins++;
-    });
-
-    const winRate = tips.length > 0 ? (wins / tips.length) * 100 : 0;
-    const streak = tips
-        .sort((a: any, b: any) => (Number(b.created_at) || 0) - (Number(a.created_at) || 0))
-        .slice(0, 10)
-        .map((t: any) => t.status as TipStatus);
-
-    return {
-      winRate: parseFloat(winRate.toFixed(1)),
-      totalTips: tips.length,
-      wonTips: wins,
-      streak
-    };
   }
 
   // --- NEWS ---
 
   async getNews(): Promise<NewsPost[]> {
-    const { data, error } = await supabase
-      .from('news')
-      .select('*')
-      .order('created_at', { ascending: false });
-      
-    if (error) {
-        console.error('SUPABASE NEWS FETCH ERROR:', error.message);
+    try {
+        const { data, error } = await supabase
+        .from('news')
+        .select('*')
+        .order('created_at', { ascending: false });
+        
+        if (error) {
+            console.error('SUPABASE NEWS FETCH ERROR:', error.message);
+            return [];
+        }
+        
+        if (!data) return [];
+        
+        return data.map((n: any) => ({
+            ...n,
+            imageUrl: n.image_url,
+            videoUrl: n.video_url,
+            matchDate: n.match_date,
+            createdAt: n.created_at ? Number(n.created_at) : Date.now()
+        }));
+    } catch (err: any) {
+        console.error('Network/Fetch Error (News):', err.message);
         return [];
     }
-    
-    if (!data) return [];
-    
-    return data.map((n: any) => ({
-        ...n,
-        imageUrl: n.image_url,
-        videoUrl: n.video_url,
-        matchDate: n.match_date,
-        createdAt: n.created_at ? Number(n.created_at) : Date.now()
-    }));
   }
 
   async addNews(post: Omit<NewsPost, 'id' | 'createdAt'>): Promise<void> {
