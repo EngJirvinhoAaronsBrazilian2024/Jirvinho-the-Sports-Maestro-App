@@ -116,12 +116,13 @@ class MockDBService {
   }
 
   async getCurrentUser(): Promise<User | null> {
-      const stored = sessionStorage.getItem(this.userKey);
+      // Changed to localStorage for persistence across sessions
+      const stored = localStorage.getItem(this.userKey);
       return stored ? JSON.parse(stored) : null;
   }
 
   async login(email: string, password: string): Promise<User> {
-    // Instant login (removed setTimeout)
+    // Instant login
     let user: User | null = null;
     if (email === 'admin@jirvinho.com' && password === 'admin123') {
       user = { uid: 'admin_001', email, role: UserRole.ADMIN, displayName: 'The Maestro' };
@@ -138,7 +139,8 @@ class MockDBService {
     }
 
     if (user) {
-        sessionStorage.setItem(this.userKey, JSON.stringify(user));
+        // Changed to localStorage for persistence
+        localStorage.setItem(this.userKey, JSON.stringify(user));
         this.notifyAuthListeners(user);
         return user;
     }
@@ -146,7 +148,6 @@ class MockDBService {
   }
 
   async signUp(email: string, password: string, displayName: string): Promise<User> {
-      // Instant signup (removed setTimeout)
       if (email === 'admin@jirvinho.com' || email === 'user@test.com') {
           throw new Error('User already exists.');
       }
@@ -160,7 +161,8 @@ class MockDBService {
       localStorage.setItem(`user_${email}`, JSON.stringify(newUser));
       
       const sessionUser: User = { uid: newUser.uid, email: newUser.email, role: newUser.role, displayName: newUser.displayName };
-      sessionStorage.setItem(this.userKey, JSON.stringify(sessionUser));
+      // Changed to localStorage for persistence
+      localStorage.setItem(this.userKey, JSON.stringify(sessionUser));
       this.notifyAuthListeners(sessionUser);
       return sessionUser;
   }
@@ -171,7 +173,8 @@ class MockDBService {
   }
 
   async logout() {
-    sessionStorage.removeItem(this.userKey);
+    // Changed to localStorage for persistence
+    localStorage.removeItem(this.userKey);
     this.notifyAuthListeners(null);
   }
 

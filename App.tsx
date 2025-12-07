@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { User, UserRole, Tip, NewsPost, MaestroStats, TipStatus, TipCategory, TipLeg, Message } from './types';
-// SWITCHED TO REAL SUPABASE SERVICE
-import { dbService } from './services/db';
+// REVERTED TO MOCK DB SERVICE AS REQUESTED
+import { mockDB as dbService } from './services/mockDb';
 import { generateMatchAnalysis, checkBetResult } from './services/geminiService';
 import { Layout } from './components/Layout';
 import { TipCard } from './components/TipCard';
@@ -175,10 +175,6 @@ export const App: React.FC = () => {
     } catch (err: any) {
       console.error(err);
       let msg = err.message || 'Authentication failed';
-      // Help user understand why their "old" mock credentials don't work
-      if (msg.includes('Invalid login credentials') || msg.includes('User not found')) {
-          msg = 'Invalid credentials. If you just switched databases, please Sign Up to create a new account.';
-      }
       setAuthError(msg);
       setLoading(false);
     }
