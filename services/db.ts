@@ -12,15 +12,13 @@ class DBService {
       
       if (session?.user) {
         // Fetch profile to get role
-        const { data: profile, error } = await supabase
+        // Note: If 'profiles' table doesn't exist, this will error but we fallback to metadata/USER role.
+        const { data: profile } = await supabase
           .from('profiles')
           .select('*')
           .eq('id', session.user.id)
-          .single();
-
-        if (error) {
-             console.warn("Profile fetch warning:", error.message);
-        }
+          .single()
+          .catch(() => ({ data: null })); // Robustness: Ignore error if profile not found
 
         const user: User = {
           uid: session.user.id,
@@ -36,30 +34,32 @@ class DBService {
   }
 
   async getCurrentUser(): Promise<User | null> {
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-    if (sessionError) {
-        console.error("Session Check Error:", sessionError.message);
+    try {
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError) {
+            console.warn("Session Check Warning:", sessionError.message);
+            return null;
+        }
+        if (!session?.user) return null;
+
+        // Fetch profile for role
+        const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', session.user.id)
+        .single()
+        .catch(() => ({ data: null }));
+
+        return {
+        uid: session.user.id,
+        email: session.user.email!,
+        role: (profile?.role as UserRole) || UserRole.USER,
+        displayName: profile?.display_name || session.user.user_metadata.displayName || 'User'
+        };
+    } catch (e) {
+        console.error("Error checking current user", e);
         return null;
     }
-    if (!session?.user) return null;
-
-    // Fetch profile for role
-    const { data: profile, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', session.user.id)
-      .single();
-
-    if (error) {
-        console.warn("Profile fetch warning (Tables might be missing):", error.message);
-    }
-
-    return {
-      uid: session.user.id,
-      email: session.user.email!,
-      role: (profile?.role as UserRole) || UserRole.USER,
-      displayName: profile?.display_name || session.user.user_metadata.displayName || 'User'
-    };
   }
 
   async login(email: string, password: string): Promise<User> {
@@ -101,7 +101,8 @@ class DBService {
         .order('created_at', { ascending: false });
         
         if (error) {
-            console.error('SUPABASE TIPS FETCH ERROR:', error.message);
+            // Log but don't crash
+            console.warn('SUPABASE TIPS FETCH ERROR:', error.message);
             return [];
         }
         
@@ -115,7 +116,7 @@ class DBService {
         createdAt: t.created_at ? Number(t.created_at) : Date.now()
         }));
     } catch (err: any) {
-        console.error('Network/Fetch Error (Tips):', err.message);
+        console.warn('Network/Fetch Error (Tips):', err.message);
         return [];
     }
   }
@@ -148,13 +149,17 @@ class DBService {
   }
 
   async voteOnTip(id: string, type: 'agree' | 'disagree'): Promise<void> {
-    const { data: tip } = await supabase.from('tips').select('votes').eq('id', id).single();
-    if (tip) {
-        const votes = tip.votes || { agree: 0, disagree: 0 };
-        if (type === 'agree') votes.agree++;
-        else votes.disagree++;
-        
-        await supabase.from('tips').update({ votes }).eq('id', id);
+    try {
+        const { data: tip } = await supabase.from('tips').select('votes').eq('id', id).single();
+        if (tip) {
+            const votes = tip.votes || { agree: 0, disagree: 0 };
+            if (type === 'agree') votes.agree++;
+            else votes.disagree++;
+            
+            await supabase.from('tips').update({ votes }).eq('id', id);
+        }
+    } catch (e) {
+        console.error("Vote failed", e);
     }
   }
 
@@ -202,7 +207,7 @@ class DBService {
         streak
         };
     } catch (err: any) {
-        console.error('Network/Fetch Error (Stats):', err.message);
+        console.warn('Network/Fetch Error (Stats):', err.message);
         return { winRate: 0, totalTips: 0, wonTips: 0, streak: [] };
     }
   }
@@ -217,7 +222,7 @@ class DBService {
         .order('created_at', { ascending: false });
         
         if (error) {
-            console.error('SUPABASE NEWS FETCH ERROR:', error.message);
+            console.warn('SUPABASE NEWS FETCH ERROR:', error.message);
             return [];
         }
         
@@ -231,7 +236,7 @@ class DBService {
             createdAt: n.created_at ? Number(n.created_at) : Date.now()
         }));
     } catch (err: any) {
-        console.error('Network/Fetch Error (News):', err.message);
+        console.warn('Network/Fetch Error (News):', err.message);
         return [];
     }
   }
@@ -258,42 +263,52 @@ class DBService {
   // --- MESSAGES ---
 
   async getMessages(): Promise<Message[]> {
-      const { data, error } = await supabase.from('messages').select('*').order('created_at', { ascending: false });
-      if (error) {
-          console.error('SUPABASE MESSAGES ERROR:', error.message);
+      try {
+        const { data, error } = await supabase.from('messages').select('*').order('created_at', { ascending: false });
+        if (error) {
+            console.warn('SUPABASE MESSAGES ERROR:', error.message);
+            return [];
+        }
+        if (!data) return [];
+        
+        return data.map((m: any) => ({
+            ...m,
+            userId: m.user_id,
+            userName: m.user_name,
+            createdAt: m.created_at ? Number(m.created_at) : Date.now(),
+            isRead: m.is_read
+        }));
+      } catch (e) {
+          console.warn("Msg error", e);
           return [];
       }
-      if (!data) return [];
-      
-      return data.map((m: any) => ({
-          ...m,
-          userId: m.user_id,
-          userName: m.user_name,
-          createdAt: m.created_at ? Number(m.created_at) : Date.now(),
-          isRead: m.is_read
-      }));
   }
 
   async getUserMessages(userId: string): Promise<Message[]> {
-      const { data, error } = await supabase
-        .from('messages')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false });
-        
-      if (error) {
-           console.error('SUPABASE USER MESSAGES ERROR:', error.message);
-           return [];
-      }
-      if (!data) return [];
+      try {
+        const { data, error } = await supabase
+            .from('messages')
+            .select('*')
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false });
+            
+        if (error) {
+            console.warn('SUPABASE USER MESSAGES ERROR:', error.message);
+            return [];
+        }
+        if (!data) return [];
 
-      return data.map((m: any) => ({
-          ...m,
-          userId: m.user_id,
-          userName: m.user_name,
-          createdAt: m.created_at ? Number(m.created_at) : Date.now(),
-          isRead: m.is_read
-      }));
+        return data.map((m: any) => ({
+            ...m,
+            userId: m.user_id,
+            userName: m.user_name,
+            createdAt: m.created_at ? Number(m.created_at) : Date.now(),
+            isRead: m.is_read
+        }));
+      } catch (e) {
+          console.warn("User Msg error", e);
+          return [];
+      }
   }
 
   async sendMessage(userId: string, userName: string, content: string): Promise<void> {

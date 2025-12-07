@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { User, UserRole, Tip, NewsPost, MaestroStats, TipStatus, TipCategory, TipLeg, Message } from './types';
-import { mockDB as dbService } from './services/mockDb';
+// SWITCHED TO REAL SUPABASE SERVICE
+import { dbService } from './services/db';
 import { generateMatchAnalysis, checkBetResult } from './services/geminiService';
 import { Layout } from './components/Layout';
 import { TipCard } from './components/TipCard';
@@ -94,10 +95,12 @@ export const App: React.FC = () => {
 
   // 1. Auth Initialization (Runs once)
   useEffect(() => {
+    let mounted = true;
+
     const initAuth = async () => {
         try {
             const existingUser = await dbService.getCurrentUser();
-            if (existingUser) {
+            if (mounted && existingUser) {
                 setUser(existingUser);
                 // Fetch data immediately if user exists
                 await fetchData(existingUser);
@@ -105,23 +108,26 @@ export const App: React.FC = () => {
         } catch (e) {
             console.error("Auth init error:", e);
         } finally {
-            setIsInitializing(false);
+            if (mounted) setIsInitializing(false);
         }
     };
 
     initAuth();
 
     const { data: authListener } = dbService.onAuthStateChange((newUser) => {
+        if (!mounted) return;
         setUser(newUser);
         if (newUser) {
             fetchData(newUser);
         }
-        // If auth state changes (e.g., late session recovery), ensure we stop initializing
         setIsInitializing(false);
     });
     
     return () => {
-        authListener.subscription.unsubscribe();
+        mounted = false;
+        if (authListener && authListener.subscription) {
+            authListener.subscription.unsubscribe();
+        }
     };
   }, []);
 
