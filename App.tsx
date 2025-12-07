@@ -27,6 +27,7 @@ const STATIC_TICKER_ITEMS = [
 
 export const App: React.FC = () => {
   // Auth State
+  const [isInitializing, setIsInitializing] = useState(true);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'signup' | 'forgot'>('login');
@@ -65,27 +66,7 @@ export const App: React.FC = () => {
   const touchStartX = useRef(0);
   const touchEndX = useRef(0);
 
-  // --- Effects ---
-
-  useEffect(() => {
-    // 1. Subscribe to Auth Changes
-    const { data: authListener } = dbService.onAuthStateChange((newUser) => {
-        setUser(newUser);
-        if (newUser) fetchData(newUser);
-    });
-
-    // 2. Initial Data Fetch Interval
-    const interval = setInterval(() => {
-       if(user) fetchData(user); 
-    }, 15000);
-    
-    return () => {
-        authListener.subscription.unsubscribe();
-        clearInterval(interval);
-    };
-  }, [user?.uid, activeTab]);
-
-  // Optimized Fetch Data (Parallel)
+  // --- Optimized Fetch Data ---
   const fetchData = async (currentUser = user) => {
     try {
         const [tipsData, newsData, statsData] = await Promise.all([
@@ -108,6 +89,52 @@ export const App: React.FC = () => {
         console.error("Error fetching data:", error);
     }
   };
+
+  // --- Effects ---
+
+  // 1. Auth Initialization (Runs once)
+  useEffect(() => {
+    const initAuth = async () => {
+        try {
+            const existingUser = await dbService.getCurrentUser();
+            if (existingUser) {
+                setUser(existingUser);
+                await fetchData(existingUser);
+            }
+        } catch (e) {
+            console.error("Auth init error:", e);
+        } finally {
+            setIsInitializing(false);
+        }
+    };
+
+    initAuth();
+
+    const { data: authListener } = dbService.onAuthStateChange((newUser) => {
+        setUser(newUser);
+        if (newUser) {
+            fetchData(newUser);
+        }
+        setIsInitializing(false);
+    });
+    
+    return () => {
+        authListener.subscription.unsubscribe();
+    };
+  }, []);
+
+  // 2. Data Polling (Runs when user or activeTab changes)
+  useEffect(() => {
+    if (!user) return;
+
+    fetchData(user); // Fetch immediately on tab/user change
+    
+    const interval = setInterval(() => {
+       fetchData(user); 
+    }, 15000);
+
+    return () => clearInterval(interval);
+  }, [user?.uid, activeTab]);
 
   // --- Auth Handlers ---
 
@@ -336,11 +363,7 @@ export const App: React.FC = () => {
   };
 
   const getAllHeadlines = () => {
-      // Prioritize actual news posted by admin
       const newsTitles = news.map(n => `🚨 ${n.title}`);
-      
-      // If we have real news, use it. Otherwise use static.
-      // Or mix them if you want both.
       if (newsTitles.length > 0) {
           return [...newsTitles, ...STATIC_TICKER_ITEMS];
       }
@@ -376,6 +399,23 @@ export const App: React.FC = () => {
   };
 
   // --- Render Sections ---
+
+  // --- Splash Screen (Initialization) ---
+  if (isInitializing) {
+      return (
+        <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+             <div className="flex flex-col items-center animate-pulse">
+                 <div className="w-20 h-20 bg-gradient-to-br from-brazil-green to-brazil-blue rounded-full flex items-center justify-center mb-4 shadow-lg shadow-green-500/20">
+                    <Trophy size={40} className="text-brazil-yellow" />
+                 </div>
+                 <h1 className="text-3xl font-black italic text-center tracking-tighter text-white">
+                    JIRVINHO
+                 </h1>
+                 <p className="text-sm font-bold text-brazil-yellow tracking-widest mt-1">THE SPORTS MAESTRO</p>
+             </div>
+        </div>
+      );
+  }
 
   // --- Login Screen ---
   if (!user) {
@@ -467,9 +507,7 @@ export const App: React.FC = () => {
               disabled={loading}
               className="w-full bg-gradient-to-r from-brazil-green to-green-600 hover:from-green-500 hover:to-green-400 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg shadow-green-900/20 flex items-center justify-center"
             >
-              {loading ? <RefreshCw className="animate-spin" /> : 
-                authMode === 'login' ? 'Sign In' : authMode === 'signup' ? 'Create Account' : 'Send Reset Link'
-              }
+              {authMode === 'login' ? 'Sign In' : authMode === 'signup' ? 'Create Account' : 'Send Reset Link'}
             </button>
           </form>
 
