@@ -7,6 +7,7 @@ import { Layout } from './components/Layout';
 import { TipCard } from './components/TipCard';
 import { StatsWidget } from './components/StatsWidget';
 import { ImageSlider } from './components/ImageSlider';
+import { LiveScoreBoard } from './components/LiveScoreBoard';
 import { 
   PlayCircle, Lock, Mail, ChevronRight, Plus, Trash2, Save, FileText, Check, X, 
   RefreshCw, Smartphone, TrendingUp, Award, Target, UserPlus, XCircle, Trophy, 
@@ -528,18 +529,9 @@ export const App: React.FC = () => {
           </div>
       )}
 
-      {/* SCORES TAB - Placeholder */}
+      {/* SCORES TAB */}
       {activeTab === 'scores' && (
-          <div className="flex flex-col items-center justify-center min-h-[50vh] text-center space-y-4">
-              <div className="bg-slate-800 p-6 rounded-full">
-                  <Activity size={48} className="text-brazil-green" />
-              </div>
-              <h2 className="text-2xl font-bold text-white">Live Scores</h2>
-              <p className="text-slate-400 max-w-xs">Live scores integration is currently disabled for optimization.</p>
-              <button onClick={() => window.open('https://www.flashscore.com', '_blank')} className="mt-4 px-6 py-3 bg-white/10 hover:bg-white/20 rounded-xl text-white font-bold flex items-center transition-all">
-                  Open External Scores <ExternalLink size={16} className="ml-2"/>
-              </button>
-          </div>
+          <LiveScoreBoard />
       )}
 
       {/* CONTACT/MESSAGES TAB */}
