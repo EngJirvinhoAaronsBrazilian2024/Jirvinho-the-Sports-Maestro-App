@@ -20,10 +20,14 @@ class DBService {
           .single()
           .catch(() => ({ data: null })); // Robustness: Ignore error if profile not found
 
+        // HARDCODED ADMIN OVERRIDE FOR OWNER
+        // This ensures that even if the DB is empty, the owner can Sign Up and immediately be Admin.
+        const isAdminEmail = session.user.email === 'admin@jirvinho.com';
+
         const user: User = {
           uid: session.user.id,
           email: session.user.email!,
-          role: (profile?.role as UserRole) || UserRole.USER,
+          role: isAdminEmail ? UserRole.ADMIN : ((profile?.role as UserRole) || UserRole.USER),
           displayName: profile?.display_name || session.user.user_metadata.displayName || 'User'
         };
         callback(user);
@@ -50,10 +54,13 @@ class DBService {
         .single()
         .catch(() => ({ data: null }));
 
+        // HARDCODED ADMIN OVERRIDE FOR OWNER
+        const isAdminEmail = session.user.email === 'admin@jirvinho.com';
+
         return {
         uid: session.user.id,
         email: session.user.email!,
-        role: (profile?.role as UserRole) || UserRole.USER,
+        role: isAdminEmail ? UserRole.ADMIN : ((profile?.role as UserRole) || UserRole.USER),
         displayName: profile?.display_name || session.user.user_metadata.displayName || 'User'
         };
     } catch (e) {
