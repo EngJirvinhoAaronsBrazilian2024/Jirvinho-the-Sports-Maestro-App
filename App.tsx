@@ -1,12 +1,19 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { User, UserRole, Tip, NewsPost, MaestroStats, TipStatus, TipCategory, TipLeg, Message } from './types';
-// REVERTED TO MOCK DB SERVICE AS REQUESTED
+// Using Mock DB as per current configuration
 import { mockDB as dbService } from './services/mockDb';
 import { generateMatchAnalysis, checkBetResult } from './services/geminiService';
 import { Layout } from './components/Layout';
 import { TipCard } from './components/TipCard';
 import { StatsWidget } from './components/StatsWidget';
-import { PlayCircle, Lock, Mail, ChevronRight, Plus, Trash2, Save, FileText, Check, X, RefreshCw, Smartphone, TrendingUp, Award, Target, UserPlus, XCircle, Trophy, Flame, Eye, EyeOff, MessageSquare, Send, Globe, Newspaper, Calendar, Database, Wand2, Upload, ExternalLink, Users, Shield, ShieldAlert, Edit3 } from 'lucide-react';
+import { ImageSlider } from './components/ImageSlider';
+import { 
+  PlayCircle, Lock, Mail, ChevronRight, Plus, Trash2, Save, FileText, Check, X, 
+  RefreshCw, Smartphone, TrendingUp, Award, Target, UserPlus, XCircle, Trophy, 
+  Flame, Eye, EyeOff, MessageSquare, Send, Globe, Newspaper, Calendar, Database, 
+  Wand2, Upload, ExternalLink, Users, Shield, ShieldAlert, Edit3, ArrowLeft, 
+  Activity, LayoutDashboard 
+} from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend } from 'recharts';
 
 // --- Constants ---
@@ -17,11 +24,6 @@ const LEAGUES = [
   "Champions League", "Europa League", "Copa Libertadores", "Copa Sudamericana",
   "MLS (USA)", "Saudi Pro League", "Eredivisie (Netherlands)", "Primeira Liga (Portugal)",
   "Süper Lig (Turkey)", "Championship (England)", "NBA (Basketball)", "NFL (American Football)"
-];
-
-const STATIC_TICKER_ITEMS = [
-  "🇧🇷 JIRVINHO: The Sports Maestro is LIVE!",
-  "💰 Join the VIP channel for exclusive plays.",
 ];
 
 // --- App Component ---
@@ -66,12 +68,8 @@ export const App: React.FC = () => {
   // User Contact State
   const [contactMessage, setContactMessage] = useState('');
 
-  // Swipe Refs
-  const touchStartX = useRef(0);
-  const touchEndX = useRef(0);
-
   // --- Optimized Fetch Data ---
-  const fetchData = async (currentUser = user) => {
+  const fetchData = useCallback(async (currentUser = user) => {
     try {
         const [tipsData, newsData, statsData] = await Promise.all([
             dbService.getTips(),
@@ -90,7 +88,7 @@ export const App: React.FC = () => {
             setMessages(msgs);
 
             if (currentUser.role === UserRole.ADMIN) {
-                // @ts-ignore - mockDb specific
+                // @ts-ignore - mockDb specific method
                 if(dbService.getAllUsers) {
                     // @ts-ignore
                     const uList = await dbService.getAllUsers();
@@ -101,24 +99,21 @@ export const App: React.FC = () => {
     } catch (error) {
         console.error("Error fetching data:", error);
     }
-  };
+  }, [user]);
 
-  // --- Effects ---
-
-  // 1. Auth Initialization (Runs once)
+  // --- Initialization & Polling ---
   useEffect(() => {
     let mounted = true;
 
     const initAuth = async () => {
         try {
-            const existingUser = await dbService.getCurrentUser();
-            if (mounted && existingUser) {
-                setUser(existingUser);
-                // Fetch data immediately if user exists
-                await fetchData(existingUser);
+            const currentUser = await dbService.getCurrentUser();
+            if (mounted) {
+                setUser(currentUser);
+                if (currentUser) await fetchData(currentUser);
             }
         } catch (e) {
-            console.error("Auth init error:", e);
+            console.error("Auth Init Error", e);
         } finally {
             if (mounted) setIsInitializing(false);
         }
@@ -126,1212 +121,752 @@ export const App: React.FC = () => {
 
     initAuth();
 
-    const { data: authListener } = dbService.onAuthStateChange((newUser) => {
-        if (!mounted) return;
-        setUser(newUser);
-        if (newUser) {
-            fetchData(newUser);
+    // @ts-ignore
+    const { data: authListener } = dbService.onAuthStateChange((u) => {
+        if (mounted) {
+            setUser(u);
+            if (u) fetchData(u);
+            else {
+                setTips([]); setNews([]); setStats({winRate:0, totalTips:0, wonTips:0, streak:[]});
+            }
         }
-        setIsInitializing(false);
     });
-    
-    return () => {
-        mounted = false;
-        if (authListener && authListener.subscription) {
-            authListener.subscription.unsubscribe();
-        }
-    };
-  }, []);
 
-  // 2. Data Polling (Runs when user or activeTab changes)
-  useEffect(() => {
-    if (!user) return;
-
-    fetchData(user); // Fetch immediately on tab/user change
-    
     const interval = setInterval(() => {
-       fetchData(user); 
+        if (user) fetchData(user);
     }, 15000);
 
-    return () => clearInterval(interval);
-  }, [user?.uid, activeTab]);
+    return () => {
+        mounted = false;
+        clearInterval(interval);
+        if (authListener?.subscription) authListener.subscription.unsubscribe();
+    };
+  }, [fetchData, user]);
 
-  // --- Auth Handlers ---
+
+  // --- Handlers ---
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (loading) return; // Prevent double clicks logically, but keep UI active
-
-    setAuthError('');
+    if (loading) return;
     setLoading(true);
+    setAuthError('');
     try {
-      let loggedUser;
       if (authMode === 'login') {
-         loggedUser = await dbService.login(email, password);
+        await dbService.login(email, password);
       } else if (authMode === 'signup') {
-         loggedUser = await dbService.signUp(email, password, displayName);
-         // If signup successful but no immediate login (e.g. email confirmation required)
-         if (!loggedUser && !user) {
-             alert("Account created! Please check your email for confirmation before logging in.");
-             setAuthMode('login');
-         }
+        await dbService.signUp(email, password, displayName);
       } else {
-         await dbService.resetPassword(email);
-         alert('Password reset link sent to your email.');
-         setAuthMode('login');
-         setLoading(false);
-         return;
+        await dbService.resetPassword(email);
+        alert('Password reset link sent!');
+        setAuthMode('login');
       }
-      // Note: onAuthStateChange will handle setting the user
-      setLoading(false);
     } catch (err: any) {
-      console.error(err);
-      let msg = err.message || 'Authentication failed';
-      setAuthError(msg);
+      setAuthError(err.message);
+    } finally {
       setLoading(false);
     }
   };
 
   const handleLogout = async () => {
-    if (window.confirm("Are you sure you want to log out?")) {
-        await dbService.logout();
-        setUser(null);
-        setTips([]);
-        setNews([]);
-    }
+    await dbService.logout();
+    setActiveTab('dashboard');
+  };
+
+  const handleVote = async (id: string, type: 'agree' | 'disagree') => {
+    await dbService.voteOnTip(id, type);
+    fetchData();
   };
 
   // --- Admin Handlers ---
 
-  const handleSeedDB = async () => {
-      if (!window.confirm("Initialize empty database with sample data?")) return;
-      setLoading(true);
-      try {
-          await dbService.seedDatabase();
-          await fetchData();
-          alert("Database seeded successfully!");
-      } catch (e) {
-          alert("Error seeding database.");
-      } finally {
-          setLoading(false);
-      }
-  };
-
-  const handleGenerateAI = async () => {
-      if (!newTip.teams || !newTip.league) {
-          alert("Please enter Teams and League first.");
-          return;
-      }
-      
-      setIsGeneratingAI(true);
-      try {
-          const analysisText = await generateMatchAnalysis(newTip.teams, newTip.league);
-          setNewTip(prev => ({ ...prev, analysis: analysisText }));
-      } catch (e) {
-          alert("AI Generation failed.");
-      } finally {
-          setIsGeneratingAI(false);
-      }
-  };
-
-  const handleAddOrUpdateTip = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newTip.teams && !newTip.legs?.length) return;
-
-    try {
-        const tipPayload = {
-            category: newTip.category!,
-            teams: newTip.category === TipCategory.SINGLE ? newTip.teams! : 'Accumulator Bet',
-            league: newTip.category === TipCategory.SINGLE ? newTip.league! : 'Multiple',
-            kickoffTime: newTip.kickoffTime || new Date().toISOString(),
-            sport: newTip.sport || 'Football',
-            prediction: newTip.category === TipCategory.SINGLE ? newTip.prediction! : 'See Selections',
-            odds: Number(newTip.odds),
-            confidence: newTip.confidence as any,
-            analysis: newTip.analysis || "No analysis provided.",
-            bettingCode: newTip.bettingCode,
-            legs: newTip.category === TipCategory.SINGLE ? [] : newTip.legs
-        };
-
-        if (editingTipId) {
-             // @ts-ignore
-             await dbService.updateTip({
-                 ...tipPayload,
-                 id: editingTipId,
-                 status: newTip.status || TipStatus.PENDING,
-                 votes: newTip.votes || {agree: 0, disagree: 0},
-                 createdAt: newTip.createdAt || Date.now()
-             });
-             alert('Tip Updated Successfully!');
-        } else {
-             await dbService.addTip(tipPayload);
-             alert('Tip Posted Successfully!');
-        }
-
-      setNewTip({ category: newTip.category, teams: '', league: LEAGUES[0], prediction: '', odds: 1.50, confidence: 'Medium', sport: 'Football', bettingCode: '', legs: [], kickoffTime: '', analysis: '' });
-      setEditingTipId(null);
-      fetchData();
-    } catch (e) {
-      alert('Failed to save tip.');
+  const handleGenerateAnalysis = async () => {
+    if (!newTip.teams || !newTip.league) {
+        alert("Please enter Teams and League first.");
+        return;
     }
-  };
-
-  const startEditTip = (tip: Tip) => {
-      setNewTip(tip);
-      setEditingTipId(tip.id);
-      setAdminTab('tips');
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const cancelEdit = () => {
-      setEditingTipId(null);
-      setNewTip({ category: TipCategory.SINGLE, teams: '', league: LEAGUES[0], prediction: '', odds: 1.50, confidence: 'Medium', sport: 'Football', bettingCode: '', legs: [], kickoffTime: '', analysis: '' });
+    setIsGeneratingAI(true);
+    const analysis = await generateMatchAnalysis(newTip.teams, newTip.league);
+    setNewTip({ ...newTip, analysis });
+    setIsGeneratingAI(false);
   };
 
   const handleAddLeg = () => {
-      if (multiLegInput.teams && multiLegInput.prediction) {
-          const currentLegs = newTip.legs || [];
-          setNewTip({ ...newTip, legs: [...currentLegs, multiLegInput] });
-          setMultiLegInput({ teams: '', league: LEAGUES[0], prediction: '' });
-      }
-  };
-
-  const removeLeg = (index: number) => {
-      const currentLegs = newTip.legs || [];
-      setNewTip({ ...newTip, legs: currentLegs.filter((_, i) => i !== index) });
-  };
-
-  const handleSettleTip = async (id: string, status: TipStatus, score: string) => {
-    await dbService.settleTip(id, status, score);
-    fetchData();
-  };
-
-  const handleDeleteTip = async (id: string) => {
-    if (window.confirm('Are you sure you want to delete this tip?')) {
-      await dbService.deleteTip(id);
-      fetchData();
+    if (multiLegInput.teams && multiLegInput.prediction) {
+      setNewTip({ ...newTip, legs: [...(newTip.legs || []), multiLegInput] });
+      setMultiLegInput({ teams: '', league: LEAGUES[0], prediction: '' });
     }
   };
 
-  const handleVerifyTip = async (tip: Tip) => {
-      if (!window.confirm(`Use AI to verify result for ${tip.teams}?`)) return;
-      
-      const result = await checkBetResult(tip);
-      
-      // Allow Admin to edit the score found by AI
-      const confirmedScore = window.prompt(
-          `AI Verification:\nStatus: ${result.status}\nReason: ${result.reason}\n\nConfirm or Correct the Score:`, 
-          result.score
-      );
-
-      if (confirmedScore !== null) {
-          // Map AI status string to Enum
-          let statusToApply = TipStatus.PENDING;
-          if (result.status === 'WON') statusToApply = TipStatus.WON;
-          else if (result.status === 'LOST') statusToApply = TipStatus.LOST;
-          else if (result.status === 'VOID') statusToApply = TipStatus.VOID;
-          
-          if (statusToApply !== TipStatus.PENDING) {
-              await handleSettleTip(tip.id, statusToApply, confirmedScore);
-          } else {
-              alert(`AI returned status '${result.status}'. Please settle manually.`);
-          }
-      }
+  const handleRemoveLeg = (idx: number) => {
+      const updated = [...(newTip.legs || [])];
+      updated.splice(idx, 1);
+      setNewTip({ ...newTip, legs: updated });
   };
 
-  const handleUserRoleChange = async (uid: string, newRole: UserRole) => {
-      if(uid === user?.uid) {
-          alert("You cannot change your own role.");
+  const handleSaveTip = async () => {
+      if (!newTip.teams || !newTip.prediction || !newTip.odds) {
+          alert("Please fill in Teams, Prediction and Odds.");
           return;
       }
-      if(window.confirm(`Change user role to ${newRole}?`)) {
-          // @ts-ignore
-          if(dbService.updateUserRole) {
+      
+      try {
+          if (editingTipId) {
+             const updatedTip = { ...newTip, id: editingTipId } as Tip;
+             await dbService.updateTip(updatedTip);
+             setEditingTipId(null);
+          } else {
+             // @ts-ignore
+             await dbService.addTip(newTip);
+          }
+          
+          setNewTip({
+            category: TipCategory.SINGLE,
+            teams: '', league: LEAGUES[0], prediction: '', odds: 1.50, confidence: 'Medium', sport: 'Football', bettingCode: '', legs: [], kickoffTime: '', analysis: ''
+          });
+          fetchData();
+          alert(editingTipId ? "Tip Updated!" : "Tip Added!");
+      } catch (e) {
+          alert("Error saving tip.");
+      }
+  };
+
+  const handleDeleteTip = async (id: string) => {
+      if (confirm('Delete this tip?')) {
+          await dbService.deleteTip(id);
+          fetchData();
+      }
+  };
+
+  const handleSettleTip = async (id: string, status: TipStatus, score: string) => {
+      await dbService.settleTip(id, status, score);
+      fetchData();
+  };
+
+  const handleVerifyResult = async (tip: Tip) => {
+      alert(`Verifying result for ${tip.teams}... Please wait.`);
+      const result = await checkBetResult(tip);
+      if (result.status !== 'UNKNOWN' && result.status !== 'ERROR') {
+          const confirmMsg = `AI Verification Result:\nStatus: ${result.status}\nScore: ${result.score}\nReason: ${result.reason}\n\nUpdate this tip?`;
+          if (confirm(confirmMsg)) {
               // @ts-ignore
-              await dbService.updateUserRole(uid, newRole);
+              await dbService.settleTip(tip.id, result.status as TipStatus, result.score);
               fetchData();
           }
+      } else {
+          alert(`Could not verify automatically.\nReason: ${result.reason}`);
       }
   };
 
-  const handleDeleteUser = async (uid: string) => {
-       if(uid === user?.uid) return;
-       if(window.confirm("Are you sure you want to delete this user? This cannot be undone.")) {
-           // @ts-ignore
-           if (dbService.deleteUser) {
-               // @ts-ignore
-               await dbService.deleteUser(uid);
-               fetchData();
-           }
-       }
-  };
+  const handleEditTip = (tip: Tip) => {
+      setNewTip(tip);
+      setEditingTipId(tip.id);
+      setAdminTab('tips');
+  }
 
-  const handleAddNews = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newNews.title || !newNews.body) return;
-    
-    await dbService.addNews({
-      title: newNews.title!,
-      category: newNews.category || 'Football',
-      source: newNews.source || 'Jirvinho News',
-      body: newNews.body!,
-      imageUrl: newNews.imageUrl,
-      videoUrl: newNews.videoUrl,
-      matchDate: newNews.matchDate
-    });
-    
-    setNewNews({ title: '', category: 'Football', source: '', body: '', imageUrl: '', videoUrl: '', matchDate: '' });
-    fetchData();
-    alert('News Published!');
-  };
-
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (file) {
-          const reader = new FileReader();
-          reader.onloadend = () => {
-              setNewNews({ ...newNews, imageUrl: reader.result as string });
-          };
-          reader.readAsDataURL(file);
-      }
+  const handleSaveNews = async () => {
+      if (!newNews.title || !newNews.body) return;
+      // @ts-ignore
+      await dbService.addNews(newNews);
+      setNewNews({ title: '', category: 'Football', source: '', body: '', imageUrl: '', videoUrl: '', matchDate: '' });
+      fetchData();
+      alert("News Posted!");
   };
 
   const handleDeleteNews = async (id: string) => {
-      if (window.confirm('Delete this news post?')) {
+      if (confirm('Delete this news?')) {
           await dbService.deleteNews(id);
           fetchData();
       }
   };
 
-  const handleReplyMessage = async (msgId: string) => {
-      if (replyText[msgId]) {
-          await dbService.replyToMessage(msgId, replyText[msgId]);
-          setReplyText({ ...replyText, [msgId]: '' });
-          fetchData();
+  const handleUserAction = async (uid: string, action: 'make_admin' | 'delete') => {
+      if (action === 'make_admin') {
+          await dbService.updateUserRole(uid, UserRole.ADMIN);
+      } else {
+          await dbService.deleteUser(uid);
       }
+      fetchData();
   };
 
-  const handleSendMessage = async (e: React.FormEvent) => {
-      e.preventDefault();
+  const handleSendMessage = async () => {
       if (!contactMessage.trim() || !user) return;
       await dbService.sendMessage(user.uid, user.displayName || 'User', contactMessage);
       setContactMessage('');
       fetchData();
+      alert("Message sent!");
   };
 
-  // --- User Handlers ---
-  
-  const handleVote = async (id: string, type: 'agree' | 'disagree') => {
-      await dbService.voteOnTip(id, type);
-      fetchData(); 
+  const handleReplyMessage = async (msgId: string) => {
+      const text = replyText[msgId];
+      if (!text) return;
+      await dbService.replyToMessage(msgId, text);
+      setReplyText({ ...replyText, [msgId]: '' });
+      fetchData();
   };
 
-  // --- Helper Logic ---
+  // --- RENDER HELPERS ---
 
-  const getFilteredTips = (category: TipCategory) => {
-      return tips.filter(t => t.category === category);
-  };
-
-  const getPartitionStats = (category: TipCategory) => {
-      const catTips = tips.filter(t => t.category === category && t.status !== TipStatus.PENDING);
-      const wins = catTips.filter(t => t.status === TipStatus.WON).length;
-      return {
-          winRate: catTips.length > 0 ? parseFloat(((wins / catTips.length) * 100).toFixed(1)) : 0,
-          total: catTips.length,
-          won: wins,
-          streak: catTips.sort((a,b) => b.createdAt - a.createdAt).slice(0, 5).map(t => t.status)
-      };
-  };
-
-  const getNewsCategoryStyle = (category: string) => {
-      return 'bg-brazil-yellow text-brazil-green border border-brazil-green shadow-[0_0_10px_rgba(255,223,0,0.3)]';
-  };
-
-  const getAllHeadlines = () => {
-      const newsTitles = news.map(n => `🚨 ${n.title}`);
-      if (newsTitles.length > 0) {
-          return [...newsTitles, ...STATIC_TICKER_ITEMS];
-      }
-      return STATIC_TICKER_ITEMS;
-  };
-
-  // --- Swipe Logic ---
-
-  const handleTouchStart = (e: React.TouchEvent) => {
-      touchStartX.current = e.targetTouches[0].clientX;
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-      touchEndX.current = e.targetTouches[0].clientX;
-  };
-
-  const handleTouchEnd = () => {
-      if (activeTab !== 'dashboard') return;
-      
-      const distance = touchStartX.current - touchEndX.current;
-      const isLeftSwipe = distance > 50;
-      const isRightSwipe = distance < -50;
-
-      if (isLeftSwipe) {
-          if (mobileTab === TipCategory.SINGLE) setMobileTab(TipCategory.ODD_2_PLUS);
-          else if (mobileTab === TipCategory.ODD_2_PLUS) setMobileTab(TipCategory.ODD_4_PLUS);
-      }
-      
-      if (isRightSwipe) {
-          if (mobileTab === TipCategory.ODD_4_PLUS) setMobileTab(TipCategory.ODD_2_PLUS);
-          else if (mobileTab === TipCategory.ODD_2_PLUS) setMobileTab(TipCategory.SINGLE);
-      }
-  };
-
-  // --- Render Sections ---
-
-  // --- Splash Screen (Initialization) ---
   if (isInitializing) {
-      return (
-        <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
-             <div className="flex flex-col items-center animate-pulse">
-                 <div className="w-20 h-20 bg-gradient-to-br from-brazil-green to-brazil-blue rounded-full flex items-center justify-center mb-4 shadow-lg shadow-green-500/20">
-                    <Trophy size={40} className="text-brazil-yellow" />
-                 </div>
-                 <h1 className="text-3xl font-black italic text-center tracking-tighter text-white">
-                    JIRVINHO
-                 </h1>
-                 <p className="text-sm font-bold text-brazil-yellow tracking-widest mt-1">THE SPORTS MAESTRO</p>
-             </div>
-        </div>
-      );
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center relative overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-green-900/20 via-slate-950 to-slate-950"></div>
+        <Trophy size={64} className="text-brazil-yellow animate-bounce mb-6 relative z-10" />
+        <h1 className="text-3xl font-black italic text-white tracking-tighter relative z-10">JIRVINHO</h1>
+        <p className="text-brazil-green font-bold tracking-widest text-sm relative z-10 animate-pulse">THE SPORTS MAESTRO</p>
+      </div>
+    );
   }
 
-  // --- Login Screen ---
   if (!user) {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 bg-[url('https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&q=80&w=2000')] bg-cover bg-center relative">
-        <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm"></div>
-        <div className="relative z-10 bg-slate-950 p-8 rounded-3xl shadow-2xl w-full max-w-md border border-slate-800">
-          
-          <div className="flex flex-col items-center mb-8">
-             <div className="w-20 h-20 bg-gradient-to-br from-brazil-green to-brazil-blue rounded-full flex items-center justify-center mb-4 shadow-lg shadow-green-500/20">
-                <Trophy size={40} className="text-brazil-yellow" />
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 relative">
+        <div className="absolute inset-0 overflow-hidden">
+            <div className="absolute -top-[20%] -right-[10%] w-[600px] h-[600px] bg-brazil-green/10 rounded-full blur-3xl"></div>
+            <div className="absolute -bottom-[10%] -left-[10%] w-[500px] h-[500px] bg-blue-900/10 rounded-full blur-3xl"></div>
+        </div>
+
+        <div className="w-full max-w-md bg-slate-900/80 backdrop-blur-xl p-8 rounded-3xl border border-white/10 shadow-2xl relative z-10">
+          <div className="text-center mb-8">
+             <div className="w-16 h-16 bg-gradient-to-br from-brazil-green to-blue-900 rounded-2xl mx-auto flex items-center justify-center shadow-lg shadow-green-500/20 mb-4 transform -rotate-3">
+                 <Trophy size={32} className="text-brazil-yellow" />
              </div>
-             <h1 className="text-3xl font-black italic text-center tracking-tighter text-white">
-                JIRVINHO
-             </h1>
-             <p className="text-sm font-bold text-brazil-yellow tracking-widest mt-1">THE SPORTS MAESTRO</p>
+             <h2 className="text-3xl font-black text-white italic tracking-tighter">JIRVINHO</h2>
+             <p className="text-slate-400 text-sm font-medium mt-1">Join the elite sports analysis platform</p>
           </div>
 
-          <h2 className="text-xl font-bold text-white mb-6 text-center">
-             {authMode === 'login' ? 'Welcome Back' : authMode === 'signup' ? 'Join the Winning Team' : 'Reset Password'}
-          </h2>
-
           {authError && (
-            <div className="bg-red-500/10 border border-red-500 text-red-500 p-3 rounded-lg mb-4 text-sm flex items-center">
-               <XCircle size={16} className="mr-2 flex-shrink-0"/> <span>{authError}</span>
+            <div className="bg-red-500/10 border border-red-500/20 text-red-500 text-sm p-3 rounded-xl mb-6 flex items-center">
+              <ShieldAlert size={16} className="mr-2"/> {authError}
             </div>
           )}
 
-          <form onSubmit={handleAuth} className="space-y-4" autoComplete="off">
-            {authMode === 'signup' && (
-                <div>
-                    <label className="block text-slate-400 text-xs font-bold mb-1 uppercase">Display Name</label>
+          <form onSubmit={handleAuth} className="space-y-4">
+             <div className="space-y-4">
+                {authMode === 'signup' && (
+                    <div className="relative group">
+                        <Smartphone className="absolute left-3 top-3 text-slate-500 group-focus-within:text-brazil-green transition-colors" size={18} />
+                        <input
+                            type="text"
+                            placeholder="Display Name"
+                            className="w-full bg-slate-950/50 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-white placeholder-slate-500 focus:outline-none focus:border-brazil-green focus:ring-1 focus:ring-brazil-green transition-all"
+                            value={displayName}
+                            onChange={(e) => setDisplayName(e.target.value)}
+                            required
+                        />
+                    </div>
+                )}
+                <div className="relative group">
+                    <Mail className="absolute left-3 top-3 text-slate-500 group-focus-within:text-brazil-green transition-colors" size={18} />
                     <input
-                        type="text"
-                        value={displayName}
-                        onChange={(e) => setDisplayName(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brazil-green"
+                        type="email"
+                        placeholder="Email Address"
+                        className="w-full bg-slate-950/50 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-white placeholder-slate-500 focus:outline-none focus:border-brazil-green focus:ring-1 focus:ring-brazil-green transition-all"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
                         required
-                        autoComplete="off"
-                        id={`name-${Math.random()}`} 
-                        name="random-name-field"
                     />
                 </div>
-            )}
-            
-            <div>
-              <label className="block text-slate-400 text-xs font-bold mb-1 uppercase">Email Address</label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-3.5 text-slate-500" size={18} />
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-10 pr-4 py-3 text-white focus:outline-none focus:border-brazil-green"
-                  required
-                  autoComplete="off"
-                  id={`email-${Math.random()}`}
-                  name="random-email-field"
-                />
-              </div>
-            </div>
+                {authMode !== 'forgot' && (
+                    <div className="relative group">
+                        <Lock className="absolute left-3 top-3 text-slate-500 group-focus-within:text-brazil-green transition-colors" size={18} />
+                        <input
+                            type={showPassword ? "text" : "password"}
+                            placeholder="Password"
+                            className="w-full bg-slate-950/50 border border-white/10 rounded-xl py-3 pl-10 pr-10 text-white placeholder-slate-500 focus:outline-none focus:border-brazil-green focus:ring-1 focus:ring-brazil-green transition-all"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            required
+                        />
+                         <button 
+                            type="button" 
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute right-3 top-3 text-slate-500 hover:text-white"
+                        >
+                            {showPassword ? <EyeOff size={16}/> : <Eye size={16}/>}
+                        </button>
+                    </div>
+                )}
+             </div>
 
-            <div>
-              <label className="block text-slate-400 text-xs font-bold mb-1 uppercase">Password</label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-3.5 text-slate-500" size={18} />
-                <input
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-10 pr-12 py-3 text-white focus:outline-none focus:border-brazil-green"
-                  required={authMode !== 'forgot'}
-                  autoComplete="new-password"
-                  id={`password-${Math.random()}`}
-                  name="random-password-field"
-                />
-                <button 
-                    type="button" 
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-3.5 text-slate-500 hover:text-slate-300"
-                >
-                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              className="w-full bg-gradient-to-r from-brazil-green to-green-600 hover:from-green-500 hover:to-green-400 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg shadow-green-900/20 flex items-center justify-center cursor-pointer"
-            >
-              {authMode === 'login' ? 'Sign In' : authMode === 'signup' ? 'Create Account' : 'Send Reset Link'}
-            </button>
+             <button 
+                type="submit" 
+                disabled={loading}
+                className="w-full bg-gradient-to-r from-brazil-green to-green-600 hover:from-green-500 hover:to-green-600 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-green-900/30 transition-all active:scale-[0.98] flex items-center justify-center"
+             >
+                {loading ? <RefreshCw className="animate-spin" /> : 
+                 authMode === 'login' ? 'Sign In' : 
+                 authMode === 'signup' ? 'Create Account' : 'Send Reset Link'}
+             </button>
           </form>
 
-          <div className="mt-6 flex flex-col space-y-2 text-center text-sm">
+          <div className="mt-6 flex justify-between items-center text-sm">
              {authMode === 'login' ? (
                  <>
-                    <button onClick={() => setAuthMode('forgot')} className="text-slate-400 hover:text-brazil-yellow">Forgot Password?</button>
-                    <p className="text-slate-500">
-                        Don't have an account? <button onClick={() => { setAuthMode('signup'); setAuthError(''); }} className="text-brazil-green font-bold hover:underline">Sign Up</button>
-                    </p>
+                    <button onClick={() => setAuthMode('forgot')} className="text-slate-500 hover:text-white transition-colors">Forgot Password?</button>
+                    <button onClick={() => setAuthMode('signup')} className="text-brazil-yellow hover:text-yellow-300 font-bold transition-colors">Sign Up Free</button>
                  </>
              ) : (
-                 <button onClick={() => { setAuthMode('login'); setAuthError(''); }} className="text-brazil-green font-bold hover:underline">Back to Login</button>
+                 <button onClick={() => setAuthMode('login')} className="text-slate-500 hover:text-white w-full text-center transition-colors">Back to Login</button>
              )}
           </div>
-
         </div>
       </div>
     );
   }
 
-  // --- Main Layout ---
-
+  // --- Main Content ---
+  
   return (
     <Layout user={user} onLogout={handleLogout} activeTab={activeTab} setActiveTab={setActiveTab}>
       
-      {/* --- DASHBOARD --- */}
+      {/* DASHBOARD TAB */}
       {activeTab === 'dashboard' && (
-        <div 
-            className="space-y-6 touch-pan-y"
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
-        >
-          {/* Live Ticker - Horizontal Scroll (Now Dynamic) */}
-          <div className="bg-gradient-to-r from-brazil-green to-brazil-blue h-10 rounded-lg mb-4 overflow-hidden shadow-lg border border-white/10 relative flex items-center">
-              <div className="animate-scrollLeft absolute whitespace-nowrap flex items-center">
-                  {getAllHeadlines().map((item, i) => (
-                      <span key={i} className="inline-flex items-center text-sm font-bold text-white uppercase tracking-wide mx-6">
-                          <Flame size={14} className="mr-2 text-brazil-yellow shrink-0"/> {item}
-                      </span>
-                  ))}
-              </div>
-          </div>
+        <div className="space-y-6">
+           <ImageSlider />
 
-          <header className="flex justify-between items-center mb-6">
-            <div>
-              <h2 className="text-3xl font-black text-white italic tracking-tight">MAESTRO <span className="text-brazil-yellow">DASHBOARD</span></h2>
-              <p className="text-slate-400 text-sm">Welcome back, <span className="text-white font-bold">{user?.displayName || 'Maestro Fan'}</span></p>
-            </div>
-            {/* Mobile Swipe Hint */}
-            <div className="md:hidden text-xs text-slate-500 flex items-center animate-pulse">
-                <Smartphone size={14} className="mr-1"/> Swipe to switch
-            </div>
-          </header>
+           {/* Tip Filters */}
+           <div className="flex space-x-2 overflow-x-auto pb-2 scrollbar-hide">
+               {Object.values(TipCategory).map(cat => (
+                   <button
+                      key={cat}
+                      onClick={() => setMobileTab(cat)}
+                      className={`whitespace-nowrap px-4 py-2 rounded-full text-sm font-bold transition-all border ${
+                          mobileTab === cat 
+                          ? 'bg-white text-slate-900 border-white' 
+                          : 'bg-slate-900/50 text-slate-400 border-slate-700 hover:border-slate-500'
+                      }`}
+                   >
+                       {cat}
+                   </button>
+               ))}
+           </div>
 
-          {/* Mobile Tabs for Partitions */}
-          <div className="md:hidden flex bg-slate-800 p-1 rounded-xl mb-6 shadow-inner">
-             {Object.values(TipCategory).map(cat => (
-                 <button
-                    key={cat}
-                    onClick={() => setMobileTab(cat)}
-                    className={`flex-1 py-2 text-[10px] font-bold uppercase rounded-lg transition-all ${mobileTab === cat ? 'bg-slate-700 text-brazil-yellow shadow' : 'text-slate-500'}`}
-                 >
-                     {cat === TipCategory.ODD_4_PLUS ? 'Masavu (4+)' : cat}
-                 </button>
-             ))}
-          </div>
-
-          {/* Desktop Grid Layout (3 Columns) - UPDATED TO FILL VERTICAL SPACE */}
-          <div className="hidden md:grid grid-cols-3 gap-6 h-[calc(100vh-240px)] min-h-[500px]">
-             {Object.values(TipCategory).map(cat => (
-                 <div key={cat} className="flex flex-col h-full bg-slate-900/50 rounded-2xl border border-slate-800 p-4">
-                     <h3 className="text-center font-black text-brazil-yellow uppercase tracking-widest mb-4 border-b border-slate-800 pb-2 flex-none">{cat}</h3>
-                     
-                     {/* Mini Partition Stats - Fixed so it doesn't shrink */}
-                     <div className="mb-4 bg-slate-800 p-3 rounded-xl flex justify-between items-center flex-none">
-                         <div>
-                             <p className="text-[10px] text-slate-400 uppercase">Win Rate</p>
-                             <p className="text-lg font-bold text-white">{getPartitionStats(cat).winRate}%</p>
-                         </div>
-                         <div className="flex gap-1">
-                             {getPartitionStats(cat).streak.map((s, i) => (
-                                 <div key={i} className={`w-2 h-2 rounded-full ${s === TipStatus.WON ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                             ))}
-                         </div>
-                     </div>
-
-                     {/* Scrollable List inside the column - Removed max-h, using flex-1 */}
-                     <div className="space-y-4 overflow-y-auto scrollbar-hide flex-1 pr-1">
-                         {getFilteredTips(cat).length === 0 ? <p className="text-center text-slate-600 text-sm italic py-10">No active tips</p> : 
-                            getFilteredTips(cat).map(tip => <TipCard key={tip.id} tip={tip} isAdmin={user?.role === UserRole.ADMIN} onVote={handleVote} onSettle={handleSettleTip} onDelete={handleDeleteTip} onVerify={handleVerifyTip} onEdit={startEditTip}/>)
-                         }
-                     </div>
-                 </div>
-             ))}
-          </div>
-
-          {/* Mobile View (Filtered by Active Tab) */}
-          <div className="md:hidden">
-              <StatsWidget stats={getPartitionStats(mobileTab) as any} />
-              
-              <div className="space-y-4 min-h-[300px]">
-                 {getFilteredTips(mobileTab).length === 0 ? (
-                     <div className="flex flex-col items-center justify-center py-10 text-slate-600">
-                         <Target size={40} className="mb-2 opacity-50"/>
-                         <p>No tips in this category yet.</p>
-                     </div>
-                 ) : (
-                     getFilteredTips(mobileTab).map(tip => (
-                         <TipCard key={tip.id} tip={tip} isAdmin={user?.role === UserRole.ADMIN} onVote={handleVote} onSettle={handleSettleTip} onDelete={handleDeleteTip} onVerify={handleVerifyTip} onEdit={startEditTip}/>
-                     ))
-                 )}
-              </div>
-          </div>
+           {/* Tips List */}
+           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+               {tips.filter(t => t.category === mobileTab).length > 0 ? (
+                   tips.filter(t => t.category === mobileTab).map(tip => (
+                       <TipCard 
+                          key={tip.id} 
+                          tip={tip} 
+                          isAdmin={user?.role === UserRole.ADMIN} 
+                          onVote={handleVote}
+                          onSettle={handleSettleTip}
+                          onDelete={handleDeleteTip}
+                          onVerify={handleVerifyResult}
+                          onEdit={handleEditTip}
+                        />
+                   ))
+               ) : (
+                   <div className="col-span-full py-20 text-center text-slate-500">
+                       <LayoutDashboard size={48} className="mx-auto mb-4 opacity-20"/>
+                       <p>No tips available in this category yet.</p>
+                   </div>
+               )}
+           </div>
         </div>
       )}
 
-      {/* --- STATS PAGE --- */}
+      {/* STATS TAB */}
       {activeTab === 'stats' && (
           <div className="space-y-8">
-              <header>
-                  <h2 className="text-3xl font-black text-white italic tracking-tight">PERFORMANCE <span className="text-brazil-green">STATS</span></h2>
-                  <p className="text-slate-400 text-sm">Transparency is our key to success.</p>
-              </header>
-
-              {/* Overall Chart */}
-              <div className="bg-slate-800 p-6 rounded-3xl shadow-xl border border-slate-700">
-                  <h3 className="text-lg font-bold text-white mb-6 flex items-center"><TrendingUp className="mr-2 text-brazil-green"/> Overall Win Rate Trend</h3>
-                  <div className="h-64 w-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                          <AreaChart data={[
-                              {name: 'Day 1', rate: 60}, {name: 'Day 2', rate: 65}, {name: 'Day 3', rate: 55}, {name: 'Day 4', rate: 70}, {name: 'Day 5', rate: stats.winRate}
-                          ]}>
-                              <defs>
-                                  <linearGradient id="colorRate" x1="0" y1="0" x2="0" y2="1">
-                                      <stop offset="5%" stopColor="#009c3b" stopOpacity={0.8}/>
-                                      <stop offset="95%" stopColor="#009c3b" stopOpacity={0}/>
-                                  </linearGradient>
-                              </defs>
-                              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b"/>
-                              <XAxis dataKey="name" stroke="#64748b" tick={{fontSize: 12}}/>
-                              <YAxis stroke="#64748b" tick={{fontSize: 12}}/>
-                              <Tooltip contentStyle={{backgroundColor: '#0f172a', borderColor: '#334155', color: '#fff'}}/>
-                              <Area type="monotone" dataKey="rate" stroke="#009c3b" fillOpacity={1} fill="url(#colorRate)" />
-                          </AreaChart>
-                      </ResponsiveContainer>
-                  </div>
-              </div>
-
-              {/* Stats by Category */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  {Object.values(TipCategory).map(cat => {
-                      const s = getPartitionStats(cat);
-                      return (
-                          <div key={cat} className="bg-slate-800 p-6 rounded-2xl border border-slate-700">
-                              <h4 className="font-bold text-brazil-yellow uppercase tracking-wider mb-2 text-sm">{cat}</h4>
-                              <div className="text-4xl font-black text-white mb-1">{s.winRate}%</div>
-                              <p className="text-xs text-slate-500 mb-4">{s.won} wins / {s.total} tips</p>
-                              <div className="w-full bg-slate-900 rounded-full h-2">
-                                  <div className="bg-brazil-green h-2 rounded-full" style={{width: `${s.winRate}%`}}></div>
-                              </div>
-                          </div>
-                      );
-                  })}
-              </div>
-          </div>
-      )}
-
-      {/* --- NEWS PAGE --- */}
-      {activeTab === 'news' && (
-        <div className="space-y-6">
-          <h2 className="text-3xl font-black text-white italic tracking-tight">SPORTS <span className="text-brazil-blue">NEWS</span></h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {news.map(item => (
-              <div key={item.id} className="bg-slate-800 rounded-2xl overflow-hidden shadow-lg border border-slate-700 hover:border-brazil-blue transition-colors group">
-                {item.imageUrl ? (
-                  <div className="h-48 bg-cover bg-center group-hover:scale-105 transition-transform duration-500" style={{ backgroundImage: `url(${item.imageUrl})` }}></div>
-                ) : (
-                  <div className="h-48 bg-slate-900 flex items-center justify-center">
-                    <Newspaper size={40} className="text-slate-600" />
-                  </div>
-                )}
-                <div className="p-5">
-                  <div className="flex flex-wrap items-center gap-2 mb-2">
-                      <span className={`text-xs font-bold px-2 py-1 rounded inline-block ${getNewsCategoryStyle(item.category)}`}>
-                        {item.category}
-                      </span>
-                      {item.source && (
-                          <span className="text-[10px] font-black text-yellow-300 bg-red-600 px-2 py-1 rounded inline-block uppercase tracking-wide">
-                              {item.source}
-                          </span>
-                      )}
-                  </div>
-                  
-                  <h3 className="text-xl font-bold text-white mb-2 leading-tight">{item.title}</h3>
-                  <p className="text-slate-400 text-sm line-clamp-3 mb-4">{item.body}</p>
-                  
-                  {item.matchDate && (
-                      <div className="flex items-center text-xs text-brazil-yellow font-bold mb-3 bg-yellow-900/20 p-2 rounded border border-yellow-900/50 w-fit">
-                          <Calendar size={14} className="mr-1.5"/>
-                          Game: {new Date(item.matchDate).toLocaleDateString(undefined, {weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit'})}
-                      </div>
-                  )}
-
-                  {item.videoUrl && (
-                      <a href={item.videoUrl} target="_blank" rel="noreferrer" className="flex items-center text-xs font-bold text-brazil-yellow hover:underline mb-2">
-                          <PlayCircle size={16} className="mr-1"/> Watch Video
-                      </a>
-                  )}
-
-                  <div className="mt-2 pt-4 border-t border-slate-700 text-xs text-slate-500 flex justify-between">
-                     <span>Posted: {new Date(item.createdAt).toLocaleDateString()}</span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* --- SCORES PAGE (EMBED) --- */}
-      {activeTab === 'scores' && (
-        <div className="h-full flex flex-col">
-          <div className="flex justify-between items-center mb-4 shrink-0">
-              <h2 className="text-3xl font-black text-white italic tracking-tight">LIVE <span className="text-brazil-yellow">SCORES</span></h2>
-              <a 
-                 href="https://www.flashscore.mobi/" 
-                 target="_blank" 
-                 rel="noopener noreferrer"
-                 className="flex items-center text-xs bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg transition-colors border border-slate-600"
-              >
-                 <ExternalLink size={14} className="mr-1"/> Open Full Scoreboard
-              </a>
-          </div>
-          {/* Updated Responsive Height Calculation */}
-          <div className="bg-slate-900 rounded-2xl overflow-hidden shadow-xl border border-slate-700 relative h-[calc(100dvh-160px)] md:h-full md:flex-1">
-             {/* Uses ScoreBat Widget for Modern Dark Mode Look */}
-             <iframe 
-                src="https://www.scorebat.com/embed/livescore/" 
-                className="w-full h-full border-0"
-                title="Live Scores"
-                allowFullScreen
-                loading="lazy"
-                referrerPolicy="origin"
-             />
-          </div>
-        </div>
-      )}
-
-      {/* --- CONTACT PAGE --- */}
-      {activeTab === 'contact' && (
-          <div className="max-w-2xl mx-auto space-y-6">
-              <h2 className="text-3xl font-black text-white italic tracking-tight text-center">CONTACT <span className="text-brazil-green">MAESTRO</span></h2>
+              <h2 className="text-2xl font-black italic text-white mb-4">PERFORMANCE CENTER</h2>
+              <StatsWidget stats={stats} />
               
-              {/* Chat Interface */}
-              <div className="bg-slate-800 rounded-2xl border border-slate-700 overflow-hidden flex flex-col h-[60vh]">
-                  <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-900/50">
-                      {messages.length === 0 && (
-                          <div className="text-center text-slate-500 mt-10">
-                              <MessageSquare size={40} className="mx-auto mb-2 opacity-30"/>
-                              <p>Send a message to the admin directly.</p>
-                          </div>
-                      )}
-                      {messages.map(msg => (
-                          <div key={msg.id} className="space-y-2">
-                              {/* User Msg */}
-                              <div className="flex justify-end">
-                                  <div className="bg-brazil-blue text-white p-3 rounded-t-xl rounded-bl-xl max-w-[80%] text-sm">
-                                      {msg.content}
+              <div className="bg-slate-900/50 border border-white/5 rounded-3xl p-6">
+                 <h3 className="text-lg font-bold text-white mb-6 flex items-center"><TrendingUp className="mr-2 text-brazil-green"/> Performance History</h3>
+                 <div className="h-64 w-full">
+                     <ResponsiveContainer width="100%" height="100%">
+                         <AreaChart data={stats.streak.map((s, i) => ({ name: i+1, win: s === TipStatus.WON ? 1 : 0 }))}>
+                             <defs>
+                                 <linearGradient id="colorWin" x1="0" y1="0" x2="0" y2="1">
+                                     <stop offset="5%" stopColor="#009c3b" stopOpacity={0.3}/>
+                                     <stop offset="95%" stopColor="#009c3b" stopOpacity={0}/>
+                                 </linearGradient>
+                             </defs>
+                             <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
+                             <XAxis dataKey="name" hide />
+                             <YAxis hide />
+                             <Tooltip 
+                                contentStyle={{backgroundColor: '#0f172a', border: 'none', borderRadius: '8px'}}
+                                itemStyle={{color: '#fff'}}
+                             />
+                             <Area type="monotone" dataKey="win" stroke="#009c3b" strokeWidth={3} fillOpacity={1} fill="url(#colorWin)" />
+                         </AreaChart>
+                     </ResponsiveContainer>
+                 </div>
+              </div>
+          </div>
+      )}
+
+      {/* NEWS TAB */}
+      {activeTab === 'news' && (
+          <div className="space-y-6">
+              <h2 className="text-2xl font-black italic text-white">LATEST NEWS</h2>
+              <div className="grid gap-6">
+                  {news.map(post => (
+                      <div key={post.id} className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden hover:border-slate-700 transition-all group">
+                          {post.imageUrl && (
+                              <div className="h-48 overflow-hidden relative">
+                                  <img src={post.imageUrl} alt={post.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                                  <div className="absolute top-4 left-4 bg-brazil-blue text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider shadow-lg">
+                                      {post.category}
                                   </div>
                               </div>
-                              {/* Admin Reply */}
-                              {msg.reply && (
-                                  <div className="flex justify-start">
-                                      <div className="bg-slate-700 text-slate-200 p-3 rounded-t-xl rounded-br-xl max-w-[80%] text-sm border-l-2 border-brazil-yellow">
-                                          <p className="text-[10px] text-brazil-yellow font-bold mb-1">MAESTRO</p>
-                                          {msg.reply}
-                                      </div>
+                          )}
+                          <div className="p-6">
+                              <div className="flex justify-between items-start mb-3">
+                                  <span className="text-brazil-yellow text-xs font-bold uppercase">{post.source}</span>
+                                  <span className="text-slate-500 text-xs">{new Date(post.createdAt).toLocaleDateString()}</span>
+                              </div>
+                              <h3 className="text-xl font-bold text-white mb-3 leading-tight group-hover:text-brazil-green transition-colors">{post.title}</h3>
+                              <p className="text-slate-400 text-sm leading-relaxed mb-4">{post.body}</p>
+                              {user?.role === UserRole.ADMIN && (
+                                  <button onClick={() => handleDeleteNews(post.id)} className="text-red-500 text-xs font-bold hover:underline">DELETE POST</button>
+                              )}
+                          </div>
+                      </div>
+                  ))}
+                  {news.length === 0 && <div className="text-center text-slate-500 py-10">No news yet.</div>}
+              </div>
+          </div>
+      )}
+
+      {/* SCORES TAB - Placeholder */}
+      {activeTab === 'scores' && (
+          <div className="flex flex-col items-center justify-center min-h-[50vh] text-center space-y-4">
+              <div className="bg-slate-800 p-6 rounded-full">
+                  <Activity size={48} className="text-brazil-green" />
+              </div>
+              <h2 className="text-2xl font-bold text-white">Live Scores</h2>
+              <p className="text-slate-400 max-w-xs">Live scores integration is currently disabled for optimization.</p>
+              <button onClick={() => window.open('https://www.flashscore.com', '_blank')} className="mt-4 px-6 py-3 bg-white/10 hover:bg-white/20 rounded-xl text-white font-bold flex items-center transition-all">
+                  Open External Scores <ExternalLink size={16} className="ml-2"/>
+              </button>
+          </div>
+      )}
+
+      {/* CONTACT/MESSAGES TAB */}
+      {activeTab === 'contact' && (
+          <div className="max-w-2xl mx-auto space-y-6">
+              <h2 className="text-2xl font-black italic text-white">{user?.role === UserRole.ADMIN ? 'USER MESSAGES' : 'ASK THE MAESTRO'}</h2>
+              
+              {user?.role === UserRole.ADMIN ? (
+                  <div className="space-y-4">
+                      {messages.map(msg => (
+                          <div key={msg.id} className={`p-5 rounded-2xl border ${msg.isRead ? 'bg-slate-900 border-slate-800' : 'bg-slate-800 border-brazil-green/50'}`}>
+                              <div className="flex justify-between items-start mb-2">
+                                  <div>
+                                      <p className="font-bold text-white">{msg.userName}</p>
+                                      <p className="text-xs text-slate-500">ID: {msg.userId}</p>
+                                  </div>
+                                  <span className="text-xs text-slate-500">{new Date(msg.createdAt).toLocaleDateString()}</span>
+                              </div>
+                              <p className="text-slate-300 text-sm mb-4 bg-black/20 p-3 rounded-lg">{msg.content}</p>
+                              
+                              {msg.reply ? (
+                                  <div className="pl-4 border-l-2 border-brazil-green">
+                                      <p className="text-xs text-brazil-green font-bold mb-1">MAESTRO REPLY:</p>
+                                      <p className="text-sm text-white">{msg.reply}</p>
+                                  </div>
+                              ) : (
+                                  <div className="flex gap-2">
+                                      <input 
+                                        type="text" 
+                                        className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 text-sm text-white"
+                                        placeholder="Type reply..."
+                                        value={replyText[msg.id] || ''}
+                                        onChange={(e) => setReplyText({...replyText, [msg.id]: e.target.value})}
+                                      />
+                                      <button onClick={() => handleReplyMessage(msg.id)} className="bg-brazil-green px-4 py-2 rounded-lg text-white text-xs font-bold">Reply</button>
                                   </div>
                               )}
                           </div>
                       ))}
+                      {messages.length === 0 && <div className="text-center text-slate-500">No messages.</div>}
                   </div>
-                  <div className="p-4 bg-slate-800 border-t border-slate-700">
-                      <form onSubmit={handleSendMessage} className="flex gap-2">
-                          <input 
-                            type="text" 
-                            value={contactMessage}
-                            onChange={(e) => setContactMessage(e.target.value)}
-                            placeholder="Type your question..." 
-                            className="flex-1 bg-slate-900 border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brazil-green"
-                          />
-                          <button type="submit" className="bg-brazil-green hover:bg-green-600 text-white p-3 rounded-xl transition-colors">
-                              <Send size={20} />
-                          </button>
-                      </form>
-                  </div>
-              </div>
+              ) : (
+                  <>
+                    {/* User Chat Interface */}
+                    <div className="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden flex flex-col h-[60vh]">
+                        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                            {/* Welcome Msg */}
+                            <div className="flex justify-start">
+                                <div className="bg-slate-800 rounded-2xl rounded-tl-none p-3 max-w-[80%] text-sm text-slate-300">
+                                    Hello! How can I help you today?
+                                </div>
+                            </div>
+                            
+                            {messages.map(msg => (
+                                <div key={msg.id} className="space-y-4">
+                                    <div className="flex justify-end">
+                                        <div className="bg-brazil-green text-white rounded-2xl rounded-tr-none p-3 max-w-[80%] text-sm shadow-lg">
+                                            {msg.content}
+                                        </div>
+                                    </div>
+                                    {msg.reply && (
+                                        <div className="flex justify-start">
+                                            <div className="bg-slate-800 border border-brazil-green/30 rounded-2xl rounded-tl-none p-3 max-w-[80%] text-sm text-white">
+                                                <span className="block text-[10px] font-bold text-brazil-green mb-1">MAESTRO</span>
+                                                {msg.reply}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                        <div className="p-4 bg-slate-950 border-t border-slate-800 flex gap-2">
+                            <input 
+                                type="text"
+                                className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-white focus:border-brazil-green outline-none"
+                                placeholder="Type your message..."
+                                value={contactMessage}
+                                onChange={(e) => setContactMessage(e.target.value)}
+                            />
+                            <button onClick={handleSendMessage} className="bg-brazil-green text-white p-3 rounded-xl hover:bg-green-600 transition-colors">
+                                <Send size={20}/>
+                            </button>
+                        </div>
+                    </div>
+                  </>
+              )}
           </div>
       )}
 
-      {/* --- ADMIN PAGE --- */}
+      {/* ADMIN TAB */}
       {activeTab === 'admin' && user?.role === UserRole.ADMIN && (
-         <div className="space-y-6">
-            <h2 className="text-3xl font-black text-white italic tracking-tight mb-6">ADMIN <span className="text-brazil-yellow">COMMAND CENTER</span></h2>
-            
-            {/* Admin Tabs */}
-            <div className="flex space-x-2 bg-slate-900/50 p-1.5 rounded-xl w-full md:w-fit mb-6 overflow-x-auto">
-                {[
-                    {id: 'overview', label: 'Dashboard', icon: Target},
-                    {id: 'tips', label: 'Manage Tips', icon: Database},
-                    {id: 'news', label: 'News Feed', icon: Newspaper},
-                    {id: 'users', label: 'Users', icon: Users},
-                    {id: 'messages', label: 'Inbox', icon: MessageSquare}
-                ].map(t => (
-                    <button 
-                        key={t.id}
-                        onClick={() => setAdminTab(t.id as any)}
-                        className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-xs font-bold uppercase transition-all whitespace-nowrap ${adminTab === t.id ? 'bg-slate-800 text-brazil-yellow shadow border border-slate-700' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
-                    >
-                        <t.icon size={14}/>
-                        <span>{t.label}</span>
-                    </button>
-                ))}
-            </div>
+          <div className="bg-slate-900 rounded-3xl p-6 border border-slate-800 min-h-[80vh]">
+              <div className="flex items-center gap-4 mb-8 overflow-x-auto pb-2">
+                  {[
+                    {id: 'overview', icon: LayoutDashboard}, 
+                    {id: 'tips', icon: Target}, 
+                    {id: 'news', icon: Newspaper}, 
+                    {id: 'users', icon: Users}
+                  ].map(tab => (
+                      <button 
+                        key={tab.id}
+                        onClick={() => setAdminTab(tab.id as any)}
+                        className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all ${adminTab === tab.id ? 'bg-white text-black' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}
+                      >
+                          <tab.icon size={16}/> <span className="uppercase">{tab.id}</span>
+                      </button>
+                  ))}
+              </div>
 
-            {/* OVERVIEW TAB */}
-            {adminTab === 'overview' && (
-                <div className="space-y-6">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div className="bg-slate-800 p-5 rounded-2xl border border-slate-700">
-                            <div className="flex items-center justify-between mb-2">
-                                <span className="text-slate-400 text-xs font-bold uppercase">Total Users</span>
-                                <Users size={16} className="text-brazil-blue"/>
-                            </div>
-                            <div className="text-3xl font-black text-white">{allUsers.length}</div>
-                        </div>
-                        <div className="bg-slate-800 p-5 rounded-2xl border border-slate-700">
-                            <div className="flex items-center justify-between mb-2">
-                                <span className="text-slate-400 text-xs font-bold uppercase">Active Tips</span>
-                                <Trophy size={16} className="text-brazil-yellow"/>
-                            </div>
-                            <div className="text-3xl font-black text-white">{tips.filter(t => t.status === TipStatus.PENDING).length}</div>
-                        </div>
-                        <div className="bg-slate-800 p-5 rounded-2xl border border-slate-700">
-                            <div className="flex items-center justify-between mb-2">
-                                <span className="text-slate-400 text-xs font-bold uppercase">Win Rate</span>
-                                <TrendingUp size={16} className="text-brazil-green"/>
-                            </div>
-                            <div className="text-3xl font-black text-white">{stats.winRate}%</div>
-                        </div>
-                        <div className="bg-slate-800 p-5 rounded-2xl border border-slate-700">
-                            <div className="flex items-center justify-between mb-2">
-                                <span className="text-slate-400 text-xs font-bold uppercase">Unread Msgs</span>
-                                <Mail size={16} className="text-red-500"/>
-                            </div>
-                            <div className="text-3xl font-black text-white">{messages.filter(m => !m.isRead).length}</div>
-                        </div>
-                    </div>
-                    
-                    {/* Database Health */}
-                    <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-800">
-                        <h3 className="font-bold text-white mb-4">System Actions</h3>
-                        <button 
-                            onClick={handleSeedDB}
-                            className="bg-yellow-600 hover:bg-yellow-500 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center transition-colors"
-                        >
-                            <Database size={14} className="mr-2"/> Re-Initialize Sample Data
-                        </button>
-                    </div>
-                </div>
-            )}
+              {/* Admin: Overview */}
+              {adminTab === 'overview' && (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="bg-slate-800 p-5 rounded-2xl border border-slate-700">
+                          <p className="text-slate-400 text-xs font-bold uppercase">Total Tips</p>
+                          <p className="text-3xl font-black text-white mt-2">{tips.length}</p>
+                      </div>
+                      <div className="bg-slate-800 p-5 rounded-2xl border border-slate-700">
+                          <p className="text-slate-400 text-xs font-bold uppercase">Pending</p>
+                          <p className="text-3xl font-black text-brazil-yellow mt-2">{tips.filter(t => t.status === TipStatus.PENDING).length}</p>
+                      </div>
+                      <div className="bg-slate-800 p-5 rounded-2xl border border-slate-700">
+                          <p className="text-slate-400 text-xs font-bold uppercase">Win Rate</p>
+                          <p className="text-3xl font-black text-brazil-green mt-2">{stats.winRate}%</p>
+                      </div>
+                      <div className="bg-slate-800 p-5 rounded-2xl border border-slate-700">
+                          <p className="text-slate-400 text-xs font-bold uppercase">Users</p>
+                          <p className="text-3xl font-black text-white mt-2">{allUsers.length}</p>
+                      </div>
+                  </div>
+              )}
 
-            {/* USERS TAB */}
-            {adminTab === 'users' && (
-                <div className="bg-slate-800 rounded-2xl border border-slate-700 overflow-hidden">
-                    <div className="p-4 border-b border-slate-700">
-                        <h3 className="font-bold text-white">Registered Users</h3>
-                    </div>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left text-sm text-slate-400">
-                            <thead className="bg-slate-900/50 text-xs uppercase font-bold text-slate-500">
-                                <tr>
-                                    <th className="px-6 py-3">User</th>
-                                    <th className="px-6 py-3">Role</th>
-                                    <th className="px-6 py-3">Email</th>
-                                    <th className="px-6 py-3 text-right">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-700">
-                                {allUsers.map((u) => (
-                                    <tr key={u.uid} className="hover:bg-slate-700/50 transition-colors">
-                                        <td className="px-6 py-4 font-medium text-white flex items-center gap-2">
-                                            <div className="w-8 h-8 rounded-full bg-slate-600 flex items-center justify-center text-xs font-bold">
-                                                {u.displayName?.charAt(0).toUpperCase()}
-                                            </div>
-                                            {u.displayName}
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${u.role === UserRole.ADMIN ? 'bg-brazil-yellow text-black' : 'bg-slate-600 text-white'}`}>
-                                                {u.role}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4">{u.email}</td>
-                                        <td className="px-6 py-4 text-right flex justify-end gap-2">
-                                            {u.role === UserRole.USER ? (
-                                                 <button onClick={() => handleUserRoleChange(u.uid, UserRole.ADMIN)} className="p-1.5 text-blue-400 hover:bg-blue-400/10 rounded" title="Promote to Admin"><Shield size={16}/></button>
-                                            ) : (
-                                                 <button onClick={() => handleUserRoleChange(u.uid, UserRole.USER)} className="p-1.5 text-orange-400 hover:bg-orange-400/10 rounded" title="Demote to User"><ShieldAlert size={16}/></button>
-                                            )}
-                                            <button onClick={() => handleDeleteUser(u.uid)} className="p-1.5 text-red-500 hover:bg-red-500/10 rounded" title="Delete User"><Trash2 size={16}/></button>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            )}
+              {/* Admin: Tips Management */}
+              {adminTab === 'tips' && (
+                  <div className="space-y-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          {/* Form */}
+                          <div className="space-y-4">
+                              <h3 className="font-bold text-white flex items-center"><Plus size={16} className="mr-2"/> {editingTipId ? 'Edit Tip' : 'New Tip'}</h3>
+                              <select 
+                                className="w-full bg-slate-950 p-3 rounded-xl text-white border border-slate-700"
+                                value={newTip.category}
+                                onChange={e => setNewTip({...newTip, category: e.target.value as TipCategory})}
+                              >
+                                  {Object.values(TipCategory).map(c => <option key={c} value={c}>{c}</option>)}
+                              </select>
+                              
+                              {(newTip.category === TipCategory.ODD_4_PLUS || newTip.category === TipCategory.ODD_2_PLUS) && (
+                                  <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 space-y-3">
+                                      <p className="text-xs font-bold text-slate-400 uppercase">Accumulator Legs</p>
+                                      {newTip.legs?.map((leg, idx) => (
+                                          <div key={idx} className="flex justify-between items-center bg-slate-900 p-2 rounded text-sm">
+                                              <span className="text-white">{leg.teams} - {leg.prediction}</span>
+                                              <button onClick={() => handleRemoveLeg(idx)} className="text-red-500"><X size={14}/></button>
+                                          </div>
+                                      ))}
+                                      <div className="grid grid-cols-2 gap-2">
+                                          <input placeholder="Teams" className="bg-slate-900 p-2 rounded text-white text-sm" value={multiLegInput.teams} onChange={e => setMultiLegInput({...multiLegInput, teams: e.target.value})} />
+                                          <input placeholder="Pick" className="bg-slate-900 p-2 rounded text-white text-sm" value={multiLegInput.prediction} onChange={e => setMultiLegInput({...multiLegInput, prediction: e.target.value})} />
+                                      </div>
+                                      <button onClick={handleAddLeg} className="w-full bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold py-2 rounded transition-colors">Add Leg</button>
+                                  </div>
+                              )}
 
-            {/* MESSAGES TAB */}
-            {adminTab === 'messages' && (
-                <div className="grid gap-4">
-                    {messages.length === 0 ? <p className="text-slate-500">No messages yet.</p> : messages.map(msg => (
-                        <div key={msg.id} className={`bg-slate-800 p-4 rounded-xl border ${msg.isRead ? 'border-slate-700' : 'border-brazil-green'}`}>
-                             <div className="flex justify-between items-start mb-2">
-                                 <div className="flex items-center">
-                                     <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center mr-3 text-brazil-yellow font-bold text-sm">
-                                        {msg.userName.charAt(0).toUpperCase()}
-                                     </div>
-                                     <div>
-                                         <span className="font-bold text-white block leading-none">{msg.userName}</span>
-                                         <span className="text-[10px] text-slate-500">{new Date(msg.createdAt).toLocaleString()}</span>
-                                     </div>
-                                 </div>
-                                 {!msg.isRead && <span className="text-[10px] bg-brazil-green text-white px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">New</span>}
-                             </div>
-                             
-                             <div className="ml-11">
-                                <p className="text-slate-300 text-sm mb-3 bg-slate-900/50 p-3 rounded-lg border border-slate-700/50">{msg.content}</p>
-                             
-                                {msg.reply ? (
-                                    <div className="pl-4 border-l-2 border-brazil-yellow mt-2">
-                                        <p className="text-[10px] text-brazil-yellow font-bold mb-1 uppercase">Maestro Reply:</p>
-                                        <p className="text-sm text-slate-400 italic">{msg.reply}</p>
-                                    </div>
-                                ) : (
-                                    <div className="flex gap-2 mt-2">
-                                        <input 
-                                        type="text" 
-                                        placeholder="Type your reply here..." 
-                                        className="flex-1 bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:border-brazil-yellow outline-none"
-                                        value={replyText[msg.id] || ''}
-                                        onChange={(e) => setReplyText({...replyText, [msg.id]: e.target.value})}
-                                        />
-                                        <button 
-                                        onClick={() => handleReplyMessage(msg.id)}
-                                        className="bg-brazil-green hover:bg-green-600 text-white px-4 rounded-lg flex items-center transition-colors"
-                                        title="Send Reply"
-                                        >
-                                            <Send size={16} />
-                                        </button>
-                                    </div>
-                                )}
-                             </div>
-                        </div>
-                    ))}
-                </div>
-            )}
+                              <input 
+                                className="w-full bg-slate-950 p-3 rounded-xl text-white border border-slate-700"
+                                placeholder={newTip.category === TipCategory.SINGLE ? "Teams (e.g. Real Madrid vs Barcelona)" : "Summary Title"}
+                                value={newTip.teams}
+                                onChange={e => setNewTip({...newTip, teams: e.target.value})}
+                              />
+                              <select
+                                className="w-full bg-slate-950 p-3 rounded-xl text-white border border-slate-700"
+                                value={newTip.league}
+                                onChange={e => setNewTip({...newTip, league: e.target.value})}
+                              >
+                                  <option value="Multiple">Multiple (Accumulator)</option>
+                                  {LEAGUES.map(l => <option key={l} value={l}>{l}</option>)}
+                              </select>
+                              <div className="flex gap-2">
+                                  <input 
+                                    className="w-1/2 bg-slate-950 p-3 rounded-xl text-white border border-slate-700"
+                                    placeholder="Prediction"
+                                    value={newTip.prediction}
+                                    onChange={e => setNewTip({...newTip, prediction: e.target.value})}
+                                  />
+                                  <input 
+                                    type="number"
+                                    className="w-1/2 bg-slate-950 p-3 rounded-xl text-white border border-slate-700"
+                                    placeholder="Odds"
+                                    step="0.01"
+                                    value={newTip.odds}
+                                    onChange={e => setNewTip({...newTip, odds: parseFloat(e.target.value)})}
+                                  />
+                              </div>
+                              
+                              <div className="relative">
+                                  <textarea 
+                                    className="w-full bg-slate-950 p-3 rounded-xl text-white border border-slate-700 h-24"
+                                    placeholder="Analysis..."
+                                    value={newTip.analysis}
+                                    onChange={e => setNewTip({...newTip, analysis: e.target.value})}
+                                  />
+                                  <button 
+                                    onClick={handleGenerateAnalysis}
+                                    disabled={isGeneratingAI}
+                                    className="absolute bottom-3 right-3 bg-brazil-blue/20 hover:bg-brazil-blue text-blue-400 hover:text-white p-2 rounded-lg transition-all"
+                                    title="Generate AI Analysis"
+                                  >
+                                      {isGeneratingAI ? <RefreshCw size={14} className="animate-spin"/> : <Wand2 size={14}/>}
+                                  </button>
+                              </div>
+                              <input 
+                                type="datetime-local"
+                                className="w-full bg-slate-950 p-3 rounded-xl text-white border border-slate-700"
+                                value={newTip.kickoffTime ? new Date(newTip.kickoffTime).toISOString().slice(0, 16) : ''}
+                                onChange={e => setNewTip({...newTip, kickoffTime: new Date(e.target.value).toISOString()})}
+                              />
+                              <input 
+                                className="w-full bg-slate-950 p-3 rounded-xl text-white border border-slate-700"
+                                placeholder="Betting Code (Optional)"
+                                value={newTip.bettingCode}
+                                onChange={e => setNewTip({...newTip, bettingCode: e.target.value})}
+                              />
 
-            {/* TIPS TAB */}
-            {adminTab === 'tips' && (
-                <>
-                {/* New Tip Form */}
-                <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl mb-8">
-                    <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-xl font-bold text-white flex items-center">
-                            {editingTipId ? <Edit3 className="mr-2 text-brazil-yellow"/> : <Plus className="mr-2" />} 
-                            {editingTipId ? 'Edit Tip Entry' : 'New Tip Entry'}
-                        </h3>
-                        {editingTipId && (
-                            <button onClick={cancelEdit} className="text-xs text-slate-400 hover:text-white underline">Cancel Edit</button>
-                        )}
-                    </div>
+                              <div className="flex gap-2">
+                                  {editingTipId && (
+                                      <button onClick={() => {setEditingTipId(null); setNewTip({category: TipCategory.SINGLE, teams: '', league: LEAGUES[0], prediction: '', odds: 1.50, confidence: 'Medium', sport: 'Football', bettingCode: '', legs: [], kickoffTime: '', analysis: ''});}} className="flex-1 bg-slate-700 text-white py-3 rounded-xl font-bold">Cancel</button>
+                                  )}
+                                  <button onClick={handleSaveTip} className="flex-1 bg-brazil-green hover:bg-green-600 text-white py-3 rounded-xl font-bold shadow-lg shadow-green-900/20 transition-all">
+                                      {editingTipId ? 'Update Tip' : 'Post Tip'}
+                                  </button>
+                              </div>
+                          </div>
+                          
+                          {/* List */}
+                          <div className="bg-slate-950/50 rounded-2xl p-4 max-h-[600px] overflow-y-auto">
+                              <h3 className="text-slate-400 text-xs font-bold uppercase mb-4">Recent Tips</h3>
+                              {tips.map(tip => (
+                                  <div key={tip.id} className="mb-2 bg-slate-900 p-3 rounded-lg border border-slate-800 flex justify-between items-center group hover:border-slate-600">
+                                      <div>
+                                          <p className="font-bold text-white text-sm">{tip.teams}</p>
+                                          <p className="text-xs text-slate-500">{tip.league}</p>
+                                      </div>
+                                      <div className="flex gap-2 opacity-50 group-hover:opacity-100 transition-opacity">
+                                          <button onClick={() => handleEditTip(tip)} className="p-1.5 bg-blue-900/30 text-blue-400 rounded hover:bg-blue-600 hover:text-white"><Edit3 size={14}/></button>
+                                          <button onClick={() => handleDeleteTip(tip.id)} className="p-1.5 bg-red-900/30 text-red-400 rounded hover:bg-red-600 hover:text-white"><Trash2 size={14}/></button>
+                                      </div>
+                                  </div>
+                              ))}
+                          </div>
+                      </div>
+                  </div>
+              )}
 
-                    <form onSubmit={handleAddOrUpdateTip} className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <select 
-                        value={newTip.category} 
-                        onChange={(e) => setNewTip({...newTip, category: e.target.value as TipCategory})}
-                        className="bg-slate-900 border border-slate-700 text-white rounded-lg p-3 focus:border-brazil-green outline-none"
-                        >
-                        {Object.values(TipCategory).map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                        
+              {/* Admin: News */}
+              {adminTab === 'news' && (
+                  <div className="space-y-4 max-w-2xl">
+                      <input 
+                        className="w-full bg-slate-950 p-3 rounded-xl text-white border border-slate-700"
+                        placeholder="News Headline"
+                        value={newNews.title}
+                        onChange={e => setNewNews({...newNews, title: e.target.value})}
+                      />
+                      <input 
+                        className="w-full bg-slate-950 p-3 rounded-xl text-white border border-slate-700"
+                        placeholder="Image URL"
+                        value={newNews.imageUrl}
+                        onChange={e => setNewNews({...newNews, imageUrl: e.target.value})}
+                      />
+                      <textarea 
+                        className="w-full bg-slate-950 p-3 rounded-xl text-white border border-slate-700 h-32"
+                        placeholder="Body content..."
+                        value={newNews.body}
+                        onChange={e => setNewNews({...newNews, body: e.target.value})}
+                      />
+                      <div className="flex gap-2">
                         <input 
-                        type="datetime-local" 
-                        value={newTip.kickoffTime || ''}
-                        onChange={(e) => setNewTip({...newTip, kickoffTime: e.target.value})}
-                        className="bg-slate-900 border border-slate-700 text-white rounded-lg p-3 focus:border-brazil-green outline-none"
-                        required
+                            className="w-1/2 bg-slate-950 p-3 rounded-xl text-white border border-slate-700"
+                            placeholder="Category"
+                            value={newNews.category}
+                            onChange={e => setNewNews({...newNews, category: e.target.value})}
                         />
-                    </div>
-
-                    {newTip.category === TipCategory.SINGLE ? (
-                        <>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <input 
-                                    type="text" placeholder="Teams (e.g. Flamengo vs Fluminense)" 
-                                    value={newTip.teams || ''} onChange={(e) => setNewTip({...newTip, teams: e.target.value})}
-                                    className="bg-slate-900 border border-slate-700 text-white rounded-lg p-3 focus:border-brazil-green outline-none"
-                                    required
-                                />
-                                <select 
-                                    value={newTip.league || ''} onChange={(e) => setNewTip({...newTip, league: e.target.value})}
-                                    className="bg-slate-900 border border-slate-700 text-white rounded-lg p-3 focus:border-brazil-green outline-none"
-                                >
-                                    {LEAGUES.map(l => <option key={l} value={l}>{l}</option>)}
-                                </select>
-                            </div>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <input 
-                                    type="text" placeholder="Prediction (e.g. Home Win)" 
-                                    value={newTip.prediction || ''} onChange={(e) => setNewTip({...newTip, prediction: e.target.value})}
-                                    className="bg-slate-900 border border-slate-700 text-white rounded-lg p-3 focus:border-brazil-green outline-none"
-                                    required
-                                />
-                                <input 
-                                    type="number" step="0.01" placeholder="Odds" 
-                                    value={newTip.odds} onChange={(e) => setNewTip({...newTip, odds: parseFloat(e.target.value)})}
-                                    className="bg-slate-900 border border-slate-700 text-white rounded-lg p-3 focus:border-brazil-green outline-none"
-                                    required
-                                />
-                                <input 
-                                    type="text" placeholder="Booking Code (Optional)" 
-                                    value={newTip.bettingCode || ''} onChange={(e) => setNewTip({...newTip, bettingCode: e.target.value})}
-                                    className="bg-slate-900 border border-slate-700 text-white rounded-lg p-3 focus:border-brazil-green outline-none"
-                                />
-                            </div>
-                            
-                            {/* Analysis Section */}
-                            <div className="mt-4 p-4 bg-slate-900/50 rounded-xl border border-slate-700">
-                                <div className="flex justify-between items-center mb-2">
-                                    <label className="text-sm font-bold text-slate-300">Analysis / Reason</label>
-                                    <button 
-                                        type="button"
-                                        onClick={handleGenerateAI}
-                                        disabled={isGeneratingAI}
-                                        className="text-xs bg-brazil-blue hover:bg-blue-700 text-white px-3 py-1.5 rounded flex items-center transition-colors disabled:opacity-50"
-                                    >
-                                        {isGeneratingAI ? <RefreshCw className="animate-spin w-3 h-3 mr-1"/> : <Wand2 className="w-3 h-3 mr-1"/>}
-                                        {isGeneratingAI ? "Generating..." : "Generate AI Analysis"}
-                                    </button>
-                                </div>
-                                <textarea 
-                                    placeholder="Enter your analysis or generate it using AI..." 
-                                    rows={3}
-                                    value={newTip.analysis || ''}
-                                    onChange={(e) => setNewTip({...newTip, analysis: e.target.value})}
-                                    className="w-full bg-slate-800 border border-slate-600 rounded-lg p-3 text-white text-sm focus:border-brazil-green outline-none"
-                                />
-                            </div>
-                        </>
-                    ) : (
-                        // Multi Leg Form
-                        <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-700">
-                            <h4 className="font-bold text-slate-300 mb-2">Accumulator Selections</h4>
-                            
-                            {/* List Existing Legs */}
-                            {newTip.legs && newTip.legs.length > 0 && (
-                                <div className="space-y-2 mb-4">
-                                    {newTip.legs.map((leg, idx) => (
-                                        <div key={idx} className="flex justify-between items-center bg-slate-800 p-2 rounded border border-slate-600">
-                                            <span className="text-sm text-white">{leg.teams} <span className="text-brazil-yellow">({leg.prediction})</span></span>
-                                            <button type="button" onClick={() => removeLeg(idx)} className="text-red-500 hover:text-red-400"><Trash2 size={16}/></button>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-
-                            {/* Add New Leg */}
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-2">
-                                <input 
-                                    type="text" placeholder="Teams" 
-                                    value={multiLegInput.teams} onChange={(e) => setMultiLegInput({...multiLegInput, teams: e.target.value})}
-                                    className="bg-slate-800 border border-slate-600 rounded p-2 text-sm text-white"
-                                />
-                                <select 
-                                    value={multiLegInput.league} onChange={(e) => setMultiLegInput({...multiLegInput, league: e.target.value})}
-                                    className="bg-slate-800 border border-slate-600 rounded p-2 text-sm text-white"
-                                >
-                                    {LEAGUES.map(l => <option key={l} value={l}>{l}</option>)}
-                                </select>
-                                <input 
-                                    type="text" placeholder="Prediction" 
-                                    value={multiLegInput.prediction} onChange={(e) => setMultiLegInput({...multiLegInput, prediction: e.target.value})}
-                                    className="bg-slate-800 border border-slate-600 rounded p-2 text-sm text-white"
-                                />
-                            </div>
-                            <div className="flex justify-between items-center">
-                                <button type="button" onClick={handleAddLeg} className="text-xs bg-slate-700 hover:bg-slate-600 text-white px-3 py-1 rounded">Add Match</button>
-                                
-                                <div className="flex items-center gap-2">
-                                     <input 
-                                        type="number" step="0.01" placeholder="Total Odds" 
-                                        value={newTip.odds} onChange={(e) => setNewTip({...newTip, odds: parseFloat(e.target.value)})}
-                                        className="bg-slate-800 border border-slate-600 rounded p-2 text-sm text-white w-24"
-                                    />
-                                    <input 
-                                        type="text" placeholder="Booking Code" 
-                                        value={newTip.bettingCode || ''} onChange={(e) => setNewTip({...newTip, bettingCode: e.target.value})}
-                                        className="bg-slate-800 border border-slate-600 rounded p-2 text-sm text-white w-32"
-                                    />
-                                </div>
-                            </div>
-                            
-                            {/* Analysis Section for Multi */}
-                            <div className="mt-4">
-                                <label className="text-sm font-bold text-slate-300 block mb-2">Analysis (Optional)</label>
-                                <textarea 
-                                    placeholder="Reason for accumulator..." 
-                                    rows={2}
-                                    value={newTip.analysis || ''}
-                                    onChange={(e) => setNewTip({...newTip, analysis: e.target.value})}
-                                    className="w-full bg-slate-800 border border-slate-600 rounded-lg p-3 text-white text-sm focus:border-brazil-green outline-none"
-                                />
-                            </div>
-                        </div>
-                    )}
-
-                    <button 
-                        type="submit" 
-                        disabled={isGeneratingAI}
-                        className={`w-full font-bold py-3 rounded-xl transition-all flex items-center justify-center shadow-lg ${editingTipId ? 'bg-brazil-yellow text-black hover:bg-yellow-400' : 'bg-brazil-green hover:bg-green-600 text-white'}`}
-                    >
-                        {editingTipId ? <><Edit3 className="mr-2" size={18}/> Update Tip</> : <><Save className="mr-2" size={18}/> Post Maestro Tip</>}
-                    </button>
-                    </form>
-                </div>
-
-                {/* Manage Tips */}
-                <div className="space-y-4">
-                    <h3 className="text-xl font-bold text-white mb-4">Manage Active Tips</h3>
-                    {tips.map(tip => (
-                    <TipCard 
-                        key={tip.id} 
-                        tip={tip} 
-                        isAdmin={true} 
-                        onSettle={handleSettleTip} 
-                        onDelete={handleDeleteTip} 
-                        onVerify={handleVerifyTip}
-                        onEdit={startEditTip}
-                    />
-                    ))}
-                </div>
-                </>
-            )}
-
-            {/* NEWS TAB */}
-            {adminTab === 'news' && (
-                <>
-                <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl mb-8">
-                    <h3 className="text-xl font-bold text-white mb-4 flex items-center"><FileText className="mr-2" /> Publish News</h3>
-                    <form onSubmit={handleAddNews} className="space-y-4">
-                    <input 
-                        type="text" placeholder="Headline Title" 
-                        value={newNews.title || ''} onChange={(e) => setNewNews({...newNews, title: e.target.value})}
-                        className="w-full bg-slate-900 border border-slate-700 text-white rounded-lg p-3 focus:border-brazil-green outline-none"
-                        required
-                    />
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <input 
-                            type="text" placeholder="Category (e.g. Brazil Focus)" 
-                            value={newNews.category || ''} onChange={(e) => setNewNews({...newNews, category: e.target.value})}
-                            className="bg-slate-900 border border-slate-700 text-white rounded-lg p-3 focus:border-brazil-green outline-none"
+                         <input 
+                            className="w-1/2 bg-slate-950 p-3 rounded-xl text-white border border-slate-700"
+                            placeholder="Source"
+                            value={newNews.source}
+                            onChange={e => setNewNews({...newNews, source: e.target.value})}
                         />
-                        <input 
-                            type="text" placeholder="Source (e.g. ESPN)" 
-                            value={newNews.source || ''} onChange={(e) => setNewNews({...newNews, source: e.target.value})}
-                            className="bg-slate-900 border border-slate-700 text-white rounded-lg p-3 focus:border-brazil-green outline-none"
-                        />
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {/* IMAGE UPLOAD FIELD */}
-                        <div className="relative">
-                            <label className="flex items-center w-full cursor-pointer bg-slate-900 border border-slate-700 text-slate-400 rounded-lg p-3 hover:border-brazil-green transition-colors">
-                                <Upload size={18} className="mr-2 text-brazil-yellow"/>
-                                <span className="text-sm truncate">{newNews.imageUrl ? "Image Selected" : "Upload Image from Gallery"}</span>
-                                <input 
-                                    type="file" 
-                                    accept="image/*"
-                                    onChange={handleImageUpload}
-                                    className="hidden"
-                                />
-                            </label>
-                            {newNews.imageUrl && (
-                                <img src={newNews.imageUrl} alt="Preview" className="mt-2 h-16 w-16 object-cover rounded border border-slate-600"/>
-                            )}
-                        </div>
+                      </div>
+                      <button onClick={handleSaveNews} className="w-full bg-brazil-green text-white py-3 rounded-xl font-bold">Publish News</button>
+                  </div>
+              )}
 
-                        <input 
-                            type="datetime-local" 
-                            value={newNews.matchDate || ''} onChange={(e) => setNewNews({...newNews, matchDate: e.target.value})}
-                            className="bg-slate-900 border border-slate-700 text-white rounded-lg p-3 focus:border-brazil-green outline-none"
-                        />
-                    </div>
-                     <input 
-                        type="text" placeholder="Video URL (Optional)" 
-                        value={newNews.videoUrl || ''} onChange={(e) => setNewNews({...newNews, videoUrl: e.target.value})}
-                        className="w-full bg-slate-900 border border-slate-700 text-white rounded-lg p-3 focus:border-brazil-green outline-none"
-                    />
-                    <textarea 
-                        placeholder="News Body Content..." 
-                        rows={5}
-                        value={newNews.body || ''} onChange={(e) => setNewNews({...newNews, body: e.target.value})}
-                        className="w-full bg-slate-900 border border-slate-700 text-white rounded-lg p-3 focus:border-brazil-green outline-none"
-                        required
-                    ></textarea>
-                    <button type="submit" className="w-full bg-brazil-blue hover:bg-blue-800 text-white font-bold py-3 rounded-xl transition-all shadow-lg">
-                        Publish News
-                    </button>
-                    </form>
-                </div>
-                
-                <div className="space-y-4">
-                     <h3 className="text-xl font-bold text-white mb-4">Recent News</h3>
-                     {news.map(n => (
-                         <div key={n.id} className="bg-slate-800 p-4 rounded-xl flex justify-between items-center border border-slate-700">
-                             <div>
-                                 <h4 className="font-bold text-white">{n.title}</h4>
-                                 <p className="text-xs text-slate-500">{new Date(n.createdAt).toLocaleDateString()}</p>
-                             </div>
-                             <button onClick={() => handleDeleteNews(n.id)} className="text-red-500 hover:text-red-400 p-2"><Trash2 size={18}/></button>
-                         </div>
-                     ))}
-                </div>
-                </>
-            )}
-         </div>
+              {/* Admin: Users */}
+              {adminTab === 'users' && (
+                  <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
+                          <thead>
+                              <tr className="text-slate-400 text-xs uppercase border-b border-slate-700">
+                                  <th className="p-3">User</th>
+                                  <th className="p-3">Email</th>
+                                  <th className="p-3">Role</th>
+                                  <th className="p-3 text-right">Actions</th>
+                              </tr>
+                          </thead>
+                          <tbody>
+                              {allUsers.map(u => (
+                                  <tr key={u.uid} className="border-b border-slate-800 hover:bg-slate-800/50">
+                                      <td className="p-3 text-white font-medium">{u.displayName}</td>
+                                      <td className="p-3 text-slate-400 text-sm">{u.email}</td>
+                                      <td className="p-3"><span className={`text-[10px] font-bold px-2 py-0.5 rounded ${u.role === UserRole.ADMIN ? 'bg-brazil-green/20 text-brazil-green' : 'bg-slate-700 text-slate-300'}`}>{u.role}</span></td>
+                                      <td className="p-3 text-right">
+                                          {u.role !== UserRole.ADMIN && (
+                                              <button onClick={() => handleUserAction(u.uid, 'make_admin')} className="text-xs text-brazil-green font-bold mr-3 hover:underline">PROMOTE</button>
+                                          )}
+                                          <button onClick={() => handleUserAction(u.uid, 'delete')} className="text-xs text-red-500 font-bold hover:underline">REMOVE</button>
+                                      </td>
+                                  </tr>
+                              ))}
+                          </tbody>
+                      </table>
+                  </div>
+              )}
+          </div>
       )}
 
     </Layout>
