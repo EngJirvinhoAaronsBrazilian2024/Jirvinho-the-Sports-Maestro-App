@@ -21,11 +21,45 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 // --- Constants ---
 
 const LEAGUES = [
-  "Brasileirão Serie A", "Brasileirão Serie B", "Copa do Brasil",
-  "Premier League (England)", "La Liga (Spain)", "Bundesliga (Germany)", "Serie A (Italy)", "Ligue 1 (France)",
-  "Champions League", "Europa League", "Copa Libertadores", "Copa Sudamericana",
-  "MLS (USA)", "Saudi Pro League", "Eredivisie (Netherlands)", "Primeira Liga (Portugal)",
-  "Süper Lig (Turkey)", "Championship (England)", "NBA (Basketball)", "NFL (American Football)"
+  "England - Premier League", "England - Championship", "England - League One", "England - League Two", "England - FA Cup", "England - EFL Cup",
+  "Spain - La Liga", "Spain - La Liga 2", "Spain - Copa del Rey",
+  "Italy - Serie A", "Italy - Serie B", "Italy - Coppa Italia",
+  "Germany - Bundesliga", "Germany - 2. Bundesliga", "Germany - DFB Pokal",
+  "France - Ligue 1", "France - Ligue 2", "France - Coupe de France",
+  "Brazil - Brasileirão Serie A", "Brazil - Brasileirão Serie B", "Brazil - Copa do Brasil", "Brazil - Paulistão", "Brazil - Carioca",
+  "International - Champions League", "International - Europa League", "International - Conference League", "International - World Cup", "International - Euro", "International - Copa America", "International - Nations League", "International - Friendlies", "International - Club World Cup",
+  "Portugal - Primeira Liga",
+  "Netherlands - Eredivisie",
+  "Turkey - Süper Lig",
+  "USA - MLS",
+  "Saudi Arabia - Pro League",
+  "Argentina - Liga Profesional",
+  "Mexico - Liga MX",
+  "Japan - J1 League",
+  "South Korea - K League 1",
+  "Australia - A-League",
+  "Scotland - Premiership",
+  "Belgium - Pro League",
+  "Switzerland - Super League",
+  "Austria - Bundesliga",
+  "Russia - Premier League",
+  "Ukraine - Premier League",
+  "Greece - Super League",
+  "Denmark - Superliga",
+  "Sweden - Allsvenskan",
+  "Norway - Eliteserien",
+  "China - Super League",
+  "India - Super League",
+  "South Africa - Premiership",
+  "Egypt - Premier League",
+  "Morocco - Botola Pro",
+  "Basketball - NBA", "Basketball - EuroLeague",
+  "American Football - NFL",
+  "Tennis - Grand Slam", "Tennis - ATP", "Tennis - WTA",
+  "Baseball - MLB",
+  "Ice Hockey - NHL",
+  "Cricket - IPL", "Cricket - World Cup", "Cricket - T20",
+  "Multiple (Accumulator)"
 ];
 
 // --- App Component ---
@@ -744,14 +778,31 @@ export const App: React.FC = () => {
                                 value={newTip.teams}
                                 onChange={e => setNewTip({...newTip, teams: e.target.value})}
                               />
-                              <select
-                                className="w-full bg-slate-950 p-3 rounded-xl text-white border border-slate-700"
-                                value={newTip.league}
-                                onChange={e => setNewTip({...newTip, league: e.target.value})}
-                              >
-                                  <option value="Multiple">Multiple (Accumulator)</option>
-                                  {LEAGUES.map(l => <option key={l} value={l}>{l}</option>)}
-                              </select>
+                              
+                              {/* Enhanced League Selector */}
+                              <div className="space-y-2">
+                                <select
+                                    className="w-full bg-slate-950 p-3 rounded-xl text-white border border-slate-700"
+                                    value={LEAGUES.includes(newTip.league || '') ? newTip.league : 'Other'}
+                                    onChange={e => {
+                                        const val = e.target.value;
+                                        setNewTip({ ...newTip, league: val === 'Other' ? '' : val });
+                                    }}
+                                >
+                                    {LEAGUES.map(l => <option key={l} value={l}>{l}</option>)}
+                                    <option value="Other">Other / Custom League...</option>
+                                </select>
+                                {(!newTip.league || !LEAGUES.includes(newTip.league)) && (
+                                    <input 
+                                        className="w-full bg-slate-900 p-3 rounded-xl text-white border border-slate-600 focus:border-brazil-green"
+                                        placeholder="Type custom league name..."
+                                        value={newTip.league}
+                                        onChange={e => setNewTip({...newTip, league: e.target.value})}
+                                        autoFocus
+                                    />
+                                )}
+                              </div>
+
                               <div className="flex gap-2">
                                   <input 
                                     className="w-1/2 bg-slate-950 p-3 rounded-xl text-white border border-slate-700"
