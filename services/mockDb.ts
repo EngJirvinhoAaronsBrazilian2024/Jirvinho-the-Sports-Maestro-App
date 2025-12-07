@@ -1,4 +1,5 @@
-import { Tip, TipStatus, NewsPost, User, UserRole, MaestroStats, TipCategory, Message } from '../types';
+
+import { Tip, TipStatus, NewsPost, User, UserRole, MaestroStats, TipCategory, Message, Slide } from '../types';
 
 // Initial Mock Data
 const MOCK_TIPS: Tip[] = [
@@ -73,11 +74,29 @@ const MOCK_NEWS: NewsPost[] = [
   }
 ];
 
+const MOCK_SLIDES: Slide[] = [
+    {
+      id: 's1',
+      image: "https://images.unsplash.com/photo-1522778119026-d647f0565c71?auto=format&fit=crop&q=80&w=1200",
+      title: "PREMIUM TIPS DAILY",
+      subtitle: "Expert analysis for every major league match.",
+      createdAt: Date.now()
+    },
+    {
+      id: 's2',
+      image: "https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&q=80&w=1200",
+      title: "MAXIMIZE YOUR WINS",
+      subtitle: "Join the winning team with Jirvinho predictions.",
+      createdAt: Date.now() - 1000
+    }
+];
+
 class MockDBService {
   private tipsKey = 'jirvinho_tips';
   private newsKey = 'jirvinho_news';
   private userKey = 'jirvinho_user';
   private messagesKey = 'jirvinho_messages';
+  private slidesKey = 'jirvinho_slides';
   private authListeners: ((user: User | null) => void)[] = [];
 
   constructor() {
@@ -87,9 +106,11 @@ class MockDBService {
     if (!localStorage.getItem(this.newsKey)) {
       localStorage.setItem(this.newsKey, JSON.stringify(MOCK_NEWS));
     }
-    // Initialize messages if empty
     if (!localStorage.getItem(this.messagesKey)) {
         localStorage.setItem(this.messagesKey, JSON.stringify([]));
+    }
+    if (!localStorage.getItem(this.slidesKey)) {
+        localStorage.setItem(this.slidesKey, JSON.stringify(MOCK_SLIDES));
     }
   }
 
@@ -122,9 +143,6 @@ class MockDBService {
   }
 
   async getAllUsers(): Promise<User[]> {
-      // In a real mock implementation, we'd need a separate 'users' table. 
-      // For this simple mock, we will iterate all localStorage keys starting with 'user_'
-      // combined with the active session user for display purposes.
       const users: User[] = [];
       for (let i = 0; i < localStorage.length; i++) {
           const key = localStorage.key(i);
@@ -192,7 +210,6 @@ class MockDBService {
     }
 
     if (user) {
-        // Changed to localStorage for persistence
         localStorage.setItem(this.userKey, JSON.stringify(user));
         this.notifyAuthListeners(user);
         return user;
@@ -214,7 +231,6 @@ class MockDBService {
       localStorage.setItem(`user_${email}`, JSON.stringify(newUser));
       
       const sessionUser: User = { uid: newUser.uid, email: newUser.email, role: newUser.role, displayName: newUser.displayName };
-      // Changed to localStorage for persistence
       localStorage.setItem(this.userKey, JSON.stringify(sessionUser));
       this.notifyAuthListeners(sessionUser);
       return sessionUser;
@@ -226,7 +242,6 @@ class MockDBService {
   }
 
   async logout() {
-    // Changed to localStorage for persistence
     localStorage.removeItem(this.userKey);
     this.notifyAuthListeners(null);
   }
@@ -309,6 +324,33 @@ class MockDBService {
       localStorage.setItem(this.newsKey, JSON.stringify(news));
   }
 
+  // --- SLIDES ---
+  
+  async getSlides(): Promise<Slide[]> {
+      const slides = JSON.parse(localStorage.getItem(this.slidesKey) || '[]');
+      return slides.sort((a: Slide, b: Slide) => b.createdAt - a.createdAt);
+  }
+
+  async addSlide(slide: Partial<Slide>): Promise<void> {
+      const slides = await this.getSlides();
+      const newSlide = { 
+          id: Math.random().toString(36).substr(2, 9),
+          image: slide.image || '',
+          title: slide.title || '',
+          subtitle: slide.subtitle || '',
+          createdAt: Date.now() 
+      };
+      // Add to beginning
+      slides.unshift(newSlide as Slide);
+      localStorage.setItem(this.slidesKey, JSON.stringify(slides));
+  }
+
+  async deleteSlide(id: string): Promise<void> {
+      let slides = await this.getSlides();
+      slides = slides.filter(s => s.id !== id);
+      localStorage.setItem(this.slidesKey, JSON.stringify(slides));
+  }
+
   // --- STATS ---
 
   async getStats(): Promise<MaestroStats> {
@@ -373,6 +415,7 @@ class MockDBService {
   async seedDatabase(): Promise<void> {
       localStorage.setItem(this.tipsKey, JSON.stringify(MOCK_TIPS));
       localStorage.setItem(this.newsKey, JSON.stringify(MOCK_NEWS));
+      localStorage.setItem(this.slidesKey, JSON.stringify(MOCK_SLIDES));
       // Reset Messages
       localStorage.setItem(this.messagesKey, JSON.stringify([]));
   }

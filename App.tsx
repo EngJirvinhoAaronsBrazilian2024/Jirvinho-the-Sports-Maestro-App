@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
-import { User, UserRole, Tip, NewsPost, MaestroStats, TipStatus, TipCategory, TipLeg, Message } from './types';
+import { User, UserRole, Tip, NewsPost, MaestroStats, TipStatus, TipCategory, TipLeg, Message, Slide } from './types';
 // Using Mock DB as per current configuration
 import { mockDB as dbService } from './services/mockDb';
 import { generateMatchAnalysis, checkBetResult } from './services/geminiService';
@@ -13,7 +14,7 @@ import {
   RefreshCw, Smartphone, TrendingUp, Award, Target, UserPlus, XCircle, Trophy, 
   Flame, Eye, EyeOff, MessageSquare, Send, Globe, Newspaper, Calendar, Database, 
   Wand2, Upload, ExternalLink, Users, Shield, ShieldAlert, Edit3, ArrowLeft, 
-  Activity, LayoutDashboard 
+  Activity, LayoutDashboard, Image as ImageIcon, UploadCloud
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend } from 'recharts';
 
@@ -45,6 +46,7 @@ export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [tips, setTips] = useState<Tip[]>([]);
   const [news, setNews] = useState<NewsPost[]>([]);
+  const [slides, setSlides] = useState<Slide[]>([]);
   const [stats, setStats] = useState<MaestroStats>({ winRate: 0, totalTips: 0, wonTips: 0, streak: [] });
   const [messages, setMessages] = useState<Message[]>([]);
   const [allUsers, setAllUsers] = useState<User[]>([]);
@@ -53,7 +55,7 @@ export const App: React.FC = () => {
   const [mobileTab, setMobileTab] = useState<TipCategory>(TipCategory.SINGLE);
   
   // Admin State
-  const [adminTab, setAdminTab] = useState<'overview' | 'tips' | 'news' | 'users' | 'messages'>('overview');
+  const [adminTab, setAdminTab] = useState<'overview' | 'tips' | 'news' | 'slides' | 'users' | 'messages'>('overview');
   const [editingTipId, setEditingTipId] = useState<string | null>(null);
   
   const [newTip, setNewTip] = useState<Partial<Tip>>({
@@ -63,6 +65,8 @@ export const App: React.FC = () => {
   const [multiLegInput, setMultiLegInput] = useState<TipLeg>({ teams: '', league: LEAGUES[0], prediction: '' });
   
   const [newNews, setNewNews] = useState<Partial<NewsPost>>({ title: '', category: 'Football', source: '', body: '', imageUrl: '', videoUrl: '', matchDate: '' });
+  const [newSlide, setNewSlide] = useState<Partial<Slide>>({ title: '', subtitle: '', image: '' });
+  
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
   const [replyText, setReplyText] = useState<{ [key: string]: string }>({});
 
@@ -72,15 +76,17 @@ export const App: React.FC = () => {
   // --- Optimized Fetch Data ---
   const fetchData = useCallback(async (currentUser: User | null) => {
     try {
-        const [tipsData, newsData, statsData] = await Promise.all([
+        const [tipsData, newsData, statsData, slidesData] = await Promise.all([
             dbService.getTips(),
             dbService.getNews(),
-            dbService.getStats()
+            dbService.getStats(),
+            dbService.getSlides()
         ]);
         
         setTips(tipsData);
         setNews(newsData);
         setStats(statsData);
+        setSlides(slidesData);
 
         if (currentUser) {
             const msgs = currentUser.role === UserRole.ADMIN 
@@ -120,7 +126,7 @@ export const App: React.FC = () => {
         if (u) {
              fetchData(u);
         } else {
-             setTips([]); setNews([]); setStats({winRate:0, totalTips:0, wonTips:0, streak:[]});
+             setTips([]); setNews([]); setSlides([]); setStats({winRate:0, totalTips:0, wonTips:0, streak:[]});
         }
         setIsInitializing(false);
     });
@@ -261,6 +267,23 @@ export const App: React.FC = () => {
       setAdminTab('tips');
   }
 
+  // --- Image Upload Helper ---
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, callback: (base64: string) => void) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Check file size (e.g., limit to 2MB for mock db strings)
+      if (file.size > 2 * 1024 * 1024) {
+          alert("File size too large! Please upload under 2MB.");
+          return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        callback(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleSaveNews = async () => {
       if (!newNews.title || !newNews.body) return;
       // @ts-ignore
@@ -273,6 +296,25 @@ export const App: React.FC = () => {
   const handleDeleteNews = async (id: string) => {
       if (confirm('Delete this news?')) {
           await dbService.deleteNews(id);
+          if (user) fetchData(user);
+      }
+  };
+
+  // --- Slides Handlers ---
+  const handleSaveSlide = async () => {
+      if (!newSlide.image || !newSlide.title) {
+          alert("Image and Title are required.");
+          return;
+      }
+      await dbService.addSlide(newSlide);
+      setNewSlide({ title: '', subtitle: '', image: '' });
+      if (user) fetchData(user);
+      alert("Slide Added!");
+  };
+
+  const handleDeleteSlide = async (id: string) => {
+      if (confirm("Delete this slide?")) {
+          await dbService.deleteSlide(id);
           if (user) fetchData(user);
       }
   };
@@ -420,7 +462,7 @@ export const App: React.FC = () => {
       {/* DASHBOARD TAB */}
       {activeTab === 'dashboard' && (
         <div className="space-y-6">
-           <ImageSlider />
+           <ImageSlider slides={slides} />
 
            {/* Tip Filters */}
            <div className="flex space-x-2 overflow-x-auto pb-2 scrollbar-hide">
@@ -629,6 +671,7 @@ export const App: React.FC = () => {
                     {id: 'overview', icon: LayoutDashboard}, 
                     {id: 'tips', icon: Target}, 
                     {id: 'news', icon: Newspaper}, 
+                    {id: 'slides', icon: ImageIcon},
                     {id: 'users', icon: Users}
                   ].map(tab => (
                       <button 
@@ -788,17 +831,29 @@ export const App: React.FC = () => {
               {/* Admin: News */}
               {adminTab === 'news' && (
                   <div className="space-y-4 max-w-2xl">
+                      <div className="bg-slate-800 p-4 rounded-xl border border-slate-700">
+                          <label className="block text-xs font-bold text-slate-400 uppercase mb-2">News Image Upload</label>
+                          <div className="flex items-center gap-4">
+                              <label className="cursor-pointer flex items-center justify-center bg-slate-900 hover:bg-slate-950 text-white border border-dashed border-slate-600 rounded-lg p-6 w-full transition-all group">
+                                  <input type="file" accept="image/*" className="hidden" onChange={e => handleImageUpload(e, (base64) => setNewNews({...newNews, imageUrl: base64}))} />
+                                  <div className="flex flex-col items-center gap-2">
+                                      <UploadCloud className="text-slate-400 group-hover:text-brazil-green transition-colors" size={24} />
+                                      <span className="text-sm font-bold text-slate-400 group-hover:text-white">Click to Upload Image</span>
+                                  </div>
+                              </label>
+                              {newNews.imageUrl && (
+                                  <div className="w-24 h-24 rounded-lg overflow-hidden border border-white/20 shrink-0">
+                                      <img src={newNews.imageUrl} alt="Preview" className="w-full h-full object-cover" />
+                                  </div>
+                              )}
+                          </div>
+                      </div>
+
                       <input 
                         className="w-full bg-slate-950 p-3 rounded-xl text-white border border-slate-700"
                         placeholder="News Headline"
                         value={newNews.title}
                         onChange={e => setNewNews({...newNews, title: e.target.value})}
-                      />
-                      <input 
-                        className="w-full bg-slate-950 p-3 rounded-xl text-white border border-slate-700"
-                        placeholder="Image URL"
-                        value={newNews.imageUrl}
-                        onChange={e => setNewNews({...newNews, imageUrl: e.target.value})}
                       />
                       <textarea 
                         className="w-full bg-slate-950 p-3 rounded-xl text-white border border-slate-700 h-32"
@@ -821,6 +876,73 @@ export const App: React.FC = () => {
                         />
                       </div>
                       <button onClick={handleSaveNews} className="w-full bg-brazil-green text-white py-3 rounded-xl font-bold">Publish News</button>
+                  </div>
+              )}
+
+              {/* Admin: Slides Management */}
+              {adminTab === 'slides' && (
+                  <div className="space-y-6">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                           {/* Add Slide Form */}
+                           <div className="md:col-span-1 space-y-4">
+                               <div className="bg-slate-800 p-4 rounded-xl border border-slate-700">
+                                  <h3 className="font-bold text-white mb-4 flex items-center"><Plus size={16} className="mr-2"/> Add New Slide</h3>
+                                  
+                                  {/* Image Upload */}
+                                  <div className="mb-4">
+                                      <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Slide Image</label>
+                                      <label className="cursor-pointer block w-full aspect-video bg-slate-900 hover:bg-slate-950 border border-dashed border-slate-600 rounded-lg flex flex-col items-center justify-center transition-all group overflow-hidden relative">
+                                          <input type="file" accept="image/*" className="hidden" onChange={e => handleImageUpload(e, (base64) => setNewSlide({...newSlide, image: base64}))} />
+                                          {newSlide.image ? (
+                                              <img src={newSlide.image} alt="Preview" className="absolute inset-0 w-full h-full object-cover" />
+                                          ) : (
+                                              <>
+                                                  <UploadCloud className="text-slate-500 group-hover:text-brazil-green mb-2" size={24} />
+                                                  <span className="text-xs text-slate-500">Upload Banner</span>
+                                              </>
+                                          )}
+                                      </label>
+                                  </div>
+
+                                  <input 
+                                    className="w-full bg-slate-900 p-3 rounded-xl text-white border border-slate-600 mb-2"
+                                    placeholder="Main Title"
+                                    value={newSlide.title}
+                                    onChange={e => setNewSlide({...newSlide, title: e.target.value})}
+                                  />
+                                  <input 
+                                    className="w-full bg-slate-900 p-3 rounded-xl text-white border border-slate-600 mb-4"
+                                    placeholder="Subtitle"
+                                    value={newSlide.subtitle}
+                                    onChange={e => setNewSlide({...newSlide, subtitle: e.target.value})}
+                                  />
+                                  <button onClick={handleSaveSlide} className="w-full bg-brazil-green text-white py-3 rounded-xl font-bold">Add Slide</button>
+                               </div>
+                           </div>
+
+                           {/* Existing Slides List */}
+                           <div className="md:col-span-2 space-y-4">
+                               <h3 className="font-bold text-white">Active Slides</h3>
+                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                   {slides.map(slide => (
+                                       <div key={slide.id} className="relative group rounded-xl overflow-hidden border border-slate-700 aspect-video">
+                                           <img src={slide.image} alt={slide.title} className="w-full h-full object-cover" />
+                                           <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-4">
+                                               <h4 className="text-white font-bold">{slide.title}</h4>
+                                               <p className="text-xs text-slate-300">{slide.subtitle}</p>
+                                               <button 
+                                                  onClick={() => handleDeleteSlide(slide.id)}
+                                                  className="absolute top-2 right-2 p-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                                               >
+                                                   <Trash2 size={16} />
+                                               </button>
+                                           </div>
+                                       </div>
+                                   ))}
+                                   {slides.length === 0 && <p className="text-slate-500 text-sm">No slides added yet.</p>}
+                               </div>
+                           </div>
+                      </div>
                   </div>
               )}
 

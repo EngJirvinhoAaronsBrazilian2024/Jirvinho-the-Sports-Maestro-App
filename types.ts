@@ -83,3 +83,11 @@ export interface MaestroStats {
   wonTips: number;
   streak: TipStatus[]; // Last 10
 }
+
+export interface Slide {
+  id: string;
+  image: string; // URL or Base64
+  title: string;
+  subtitle: string;
+  createdAt: number;
+}
