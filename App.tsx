@@ -6,7 +6,7 @@ import { generateMatchAnalysis, checkBetResult } from './services/geminiService'
 import { Layout } from './components/Layout';
 import { TipCard } from './components/TipCard';
 import { StatsWidget } from './components/StatsWidget';
-import { PlayCircle, Lock, Mail, ChevronRight, Plus, Trash2, Save, FileText, Check, X, RefreshCw, Smartphone, TrendingUp, Award, Target, UserPlus, XCircle, Trophy, Flame, Eye, EyeOff, MessageSquare, Send, Globe, Newspaper, Calendar, Database, Wand2, Upload, ExternalLink } from 'lucide-react';
+import { PlayCircle, Lock, Mail, ChevronRight, Plus, Trash2, Save, FileText, Check, X, RefreshCw, Smartphone, TrendingUp, Award, Target, UserPlus, XCircle, Trophy, Flame, Eye, EyeOff, MessageSquare, Send, Globe, Newspaper, Calendar, Database, Wand2, Upload, ExternalLink, Users, Shield, ShieldAlert, Edit3 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend } from 'recharts';
 
 // --- Constants ---
@@ -44,12 +44,15 @@ export const App: React.FC = () => {
   const [news, setNews] = useState<NewsPost[]>([]);
   const [stats, setStats] = useState<MaestroStats>({ winRate: 0, totalTips: 0, wonTips: 0, streak: [] });
   const [messages, setMessages] = useState<Message[]>([]);
+  const [allUsers, setAllUsers] = useState<User[]>([]);
   
   // Dashboard Specific State
   const [mobileTab, setMobileTab] = useState<TipCategory>(TipCategory.SINGLE);
   
   // Admin State
-  const [adminTab, setAdminTab] = useState<'tips' | 'news' | 'messages'>('tips');
+  const [adminTab, setAdminTab] = useState<'overview' | 'tips' | 'news' | 'users' | 'messages'>('overview');
+  const [editingTipId, setEditingTipId] = useState<string | null>(null);
+  
   const [newTip, setNewTip] = useState<Partial<Tip>>({
     category: TipCategory.SINGLE,
     teams: '', league: LEAGUES[0], prediction: '', odds: 1.50, confidence: 'Medium', sport: 'Football', bettingCode: '', legs: [], kickoffTime: '', analysis: ''
@@ -85,6 +88,15 @@ export const App: React.FC = () => {
                 ? await dbService.getMessages() 
                 : await dbService.getUserMessages(currentUser.uid);
             setMessages(msgs);
+
+            if (currentUser.role === UserRole.ADMIN) {
+                // @ts-ignore - mockDb specific
+                if(dbService.getAllUsers) {
+                    // @ts-ignore
+                    const uList = await dbService.getAllUsers();
+                    setAllUsers(uList);
+                }
+            }
         }
     } catch (error) {
         console.error("Error fetching data:", error);
@@ -222,31 +234,58 @@ export const App: React.FC = () => {
       }
   };
 
-  const handleAddTip = async (e: React.FormEvent) => {
+  const handleAddOrUpdateTip = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTip.teams && !newTip.legs?.length) return;
 
     try {
-      await dbService.addTip({
-        category: newTip.category!,
-        teams: newTip.category === TipCategory.SINGLE ? newTip.teams! : 'Accumulator Bet',
-        league: newTip.category === TipCategory.SINGLE ? newTip.league! : 'Multiple',
-        kickoffTime: newTip.kickoffTime || new Date().toISOString(),
-        sport: newTip.sport || 'Football',
-        prediction: newTip.category === TipCategory.SINGLE ? newTip.prediction! : 'See Selections',
-        odds: Number(newTip.odds),
-        confidence: newTip.confidence as any,
-        analysis: newTip.analysis || "No analysis provided.", // Use edited analysis
-        bettingCode: newTip.bettingCode,
-        legs: newTip.category === TipCategory.SINGLE ? [] : newTip.legs
-      });
+        const tipPayload = {
+            category: newTip.category!,
+            teams: newTip.category === TipCategory.SINGLE ? newTip.teams! : 'Accumulator Bet',
+            league: newTip.category === TipCategory.SINGLE ? newTip.league! : 'Multiple',
+            kickoffTime: newTip.kickoffTime || new Date().toISOString(),
+            sport: newTip.sport || 'Football',
+            prediction: newTip.category === TipCategory.SINGLE ? newTip.prediction! : 'See Selections',
+            odds: Number(newTip.odds),
+            confidence: newTip.confidence as any,
+            analysis: newTip.analysis || "No analysis provided.",
+            bettingCode: newTip.bettingCode,
+            legs: newTip.category === TipCategory.SINGLE ? [] : newTip.legs
+        };
+
+        if (editingTipId) {
+             // @ts-ignore
+             await dbService.updateTip({
+                 ...tipPayload,
+                 id: editingTipId,
+                 status: newTip.status || TipStatus.PENDING,
+                 votes: newTip.votes || {agree: 0, disagree: 0},
+                 createdAt: newTip.createdAt || Date.now()
+             });
+             alert('Tip Updated Successfully!');
+        } else {
+             await dbService.addTip(tipPayload);
+             alert('Tip Posted Successfully!');
+        }
 
       setNewTip({ category: newTip.category, teams: '', league: LEAGUES[0], prediction: '', odds: 1.50, confidence: 'Medium', sport: 'Football', bettingCode: '', legs: [], kickoffTime: '', analysis: '' });
+      setEditingTipId(null);
       fetchData();
-      alert('Tip Posted Successfully!');
     } catch (e) {
-      alert('Failed to post tip. Ensure you are an Admin.');
+      alert('Failed to save tip.');
     }
+  };
+
+  const startEditTip = (tip: Tip) => {
+      setNewTip(tip);
+      setEditingTipId(tip.id);
+      setAdminTab('tips');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const cancelEdit = () => {
+      setEditingTipId(null);
+      setNewTip({ category: TipCategory.SINGLE, teams: '', league: LEAGUES[0], prediction: '', odds: 1.50, confidence: 'Medium', sport: 'Football', bettingCode: '', legs: [], kickoffTime: '', analysis: '' });
   };
 
   const handleAddLeg = () => {
@@ -298,6 +337,33 @@ export const App: React.FC = () => {
               alert(`AI returned status '${result.status}'. Please settle manually.`);
           }
       }
+  };
+
+  const handleUserRoleChange = async (uid: string, newRole: UserRole) => {
+      if(uid === user?.uid) {
+          alert("You cannot change your own role.");
+          return;
+      }
+      if(window.confirm(`Change user role to ${newRole}?`)) {
+          // @ts-ignore
+          if(dbService.updateUserRole) {
+              // @ts-ignore
+              await dbService.updateUserRole(uid, newRole);
+              fetchData();
+          }
+      }
+  };
+
+  const handleDeleteUser = async (uid: string) => {
+       if(uid === user?.uid) return;
+       if(window.confirm("Are you sure you want to delete this user? This cannot be undone.")) {
+           // @ts-ignore
+           if (dbService.deleteUser) {
+               // @ts-ignore
+               await dbService.deleteUser(uid);
+               fetchData();
+           }
+       }
   };
 
   const handleAddNews = async (e: React.FormEvent) => {
@@ -523,7 +589,6 @@ export const App: React.FC = () => {
 
             <button
               type="submit"
-              // Removed disabled={loading} to make UI feel immediate as requested
               className="w-full bg-gradient-to-r from-brazil-green to-green-600 hover:from-green-500 hover:to-green-400 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg shadow-green-900/20 flex items-center justify-center cursor-pointer"
             >
               {authMode === 'login' ? 'Sign In' : authMode === 'signup' ? 'Create Account' : 'Send Reset Link'}
@@ -618,7 +683,7 @@ export const App: React.FC = () => {
                      {/* Scrollable List inside the column - Removed max-h, using flex-1 */}
                      <div className="space-y-4 overflow-y-auto scrollbar-hide flex-1 pr-1">
                          {getFilteredTips(cat).length === 0 ? <p className="text-center text-slate-600 text-sm italic py-10">No active tips</p> : 
-                            getFilteredTips(cat).map(tip => <TipCard key={tip.id} tip={tip} isAdmin={user?.role === UserRole.ADMIN} onVote={handleVote} onSettle={handleSettleTip} onDelete={handleDeleteTip} onVerify={handleVerifyTip}/>)
+                            getFilteredTips(cat).map(tip => <TipCard key={tip.id} tip={tip} isAdmin={user?.role === UserRole.ADMIN} onVote={handleVote} onSettle={handleSettleTip} onDelete={handleDeleteTip} onVerify={handleVerifyTip} onEdit={startEditTip}/>)
                          }
                      </div>
                  </div>
@@ -637,7 +702,7 @@ export const App: React.FC = () => {
                      </div>
                  ) : (
                      getFilteredTips(mobileTab).map(tip => (
-                         <TipCard key={tip.id} tip={tip} isAdmin={user?.role === UserRole.ADMIN} onVote={handleVote} onSettle={handleSettleTip} onDelete={handleDeleteTip} onVerify={handleVerifyTip}/>
+                         <TipCard key={tip.id} tip={tip} isAdmin={user?.role === UserRole.ADMIN} onVote={handleVote} onSettle={handleSettleTip} onDelete={handleDeleteTip} onVerify={handleVerifyTip} onEdit={startEditTip}/>
                      ))
                  )}
               </div>
@@ -832,20 +897,121 @@ export const App: React.FC = () => {
       {/* --- ADMIN PAGE --- */}
       {activeTab === 'admin' && user?.role === UserRole.ADMIN && (
          <div className="space-y-6">
-            <h2 className="text-3xl font-black text-white italic tracking-tight mb-6">ADMIN <span className="text-brazil-yellow">PANEL</span></h2>
+            <h2 className="text-3xl font-black text-white italic tracking-tight mb-6">ADMIN <span className="text-brazil-yellow">COMMAND CENTER</span></h2>
             
             {/* Admin Tabs */}
-            <div className="flex space-x-2 bg-slate-900/50 p-1 rounded-lg w-fit mb-6">
-                {['tips', 'news', 'messages'].map(t => (
+            <div className="flex space-x-2 bg-slate-900/50 p-1.5 rounded-xl w-full md:w-fit mb-6 overflow-x-auto">
+                {[
+                    {id: 'overview', label: 'Dashboard', icon: Target},
+                    {id: 'tips', label: 'Manage Tips', icon: Database},
+                    {id: 'news', label: 'News Feed', icon: Newspaper},
+                    {id: 'users', label: 'Users', icon: Users},
+                    {id: 'messages', label: 'Inbox', icon: MessageSquare}
+                ].map(t => (
                     <button 
-                        key={t}
-                        onClick={() => setAdminTab(t as any)}
-                        className={`px-4 py-2 rounded-md text-sm font-bold uppercase ${adminTab === t ? 'bg-slate-800 text-brazil-yellow shadow' : 'text-slate-400 hover:text-white'}`}
+                        key={t.id}
+                        onClick={() => setAdminTab(t.id as any)}
+                        className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-xs font-bold uppercase transition-all whitespace-nowrap ${adminTab === t.id ? 'bg-slate-800 text-brazil-yellow shadow border border-slate-700' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
                     >
-                        {t}
+                        <t.icon size={14}/>
+                        <span>{t.label}</span>
                     </button>
                 ))}
             </div>
+
+            {/* OVERVIEW TAB */}
+            {adminTab === 'overview' && (
+                <div className="space-y-6">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="bg-slate-800 p-5 rounded-2xl border border-slate-700">
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="text-slate-400 text-xs font-bold uppercase">Total Users</span>
+                                <Users size={16} className="text-brazil-blue"/>
+                            </div>
+                            <div className="text-3xl font-black text-white">{allUsers.length}</div>
+                        </div>
+                        <div className="bg-slate-800 p-5 rounded-2xl border border-slate-700">
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="text-slate-400 text-xs font-bold uppercase">Active Tips</span>
+                                <Trophy size={16} className="text-brazil-yellow"/>
+                            </div>
+                            <div className="text-3xl font-black text-white">{tips.filter(t => t.status === TipStatus.PENDING).length}</div>
+                        </div>
+                        <div className="bg-slate-800 p-5 rounded-2xl border border-slate-700">
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="text-slate-400 text-xs font-bold uppercase">Win Rate</span>
+                                <TrendingUp size={16} className="text-brazil-green"/>
+                            </div>
+                            <div className="text-3xl font-black text-white">{stats.winRate}%</div>
+                        </div>
+                        <div className="bg-slate-800 p-5 rounded-2xl border border-slate-700">
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="text-slate-400 text-xs font-bold uppercase">Unread Msgs</span>
+                                <Mail size={16} className="text-red-500"/>
+                            </div>
+                            <div className="text-3xl font-black text-white">{messages.filter(m => !m.isRead).length}</div>
+                        </div>
+                    </div>
+                    
+                    {/* Database Health */}
+                    <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-800">
+                        <h3 className="font-bold text-white mb-4">System Actions</h3>
+                        <button 
+                            onClick={handleSeedDB}
+                            className="bg-yellow-600 hover:bg-yellow-500 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center transition-colors"
+                        >
+                            <Database size={14} className="mr-2"/> Re-Initialize Sample Data
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* USERS TAB */}
+            {adminTab === 'users' && (
+                <div className="bg-slate-800 rounded-2xl border border-slate-700 overflow-hidden">
+                    <div className="p-4 border-b border-slate-700">
+                        <h3 className="font-bold text-white">Registered Users</h3>
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left text-sm text-slate-400">
+                            <thead className="bg-slate-900/50 text-xs uppercase font-bold text-slate-500">
+                                <tr>
+                                    <th className="px-6 py-3">User</th>
+                                    <th className="px-6 py-3">Role</th>
+                                    <th className="px-6 py-3">Email</th>
+                                    <th className="px-6 py-3 text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-700">
+                                {allUsers.map((u) => (
+                                    <tr key={u.uid} className="hover:bg-slate-700/50 transition-colors">
+                                        <td className="px-6 py-4 font-medium text-white flex items-center gap-2">
+                                            <div className="w-8 h-8 rounded-full bg-slate-600 flex items-center justify-center text-xs font-bold">
+                                                {u.displayName?.charAt(0).toUpperCase()}
+                                            </div>
+                                            {u.displayName}
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${u.role === UserRole.ADMIN ? 'bg-brazil-yellow text-black' : 'bg-slate-600 text-white'}`}>
+                                                {u.role}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4">{u.email}</td>
+                                        <td className="px-6 py-4 text-right flex justify-end gap-2">
+                                            {u.role === UserRole.USER ? (
+                                                 <button onClick={() => handleUserRoleChange(u.uid, UserRole.ADMIN)} className="p-1.5 text-blue-400 hover:bg-blue-400/10 rounded" title="Promote to Admin"><Shield size={16}/></button>
+                                            ) : (
+                                                 <button onClick={() => handleUserRoleChange(u.uid, UserRole.USER)} className="p-1.5 text-orange-400 hover:bg-orange-400/10 rounded" title="Demote to User"><ShieldAlert size={16}/></button>
+                                            )}
+                                            <button onClick={() => handleDeleteUser(u.uid)} className="p-1.5 text-red-500 hover:bg-red-500/10 rounded" title="Delete User"><Trash2 size={16}/></button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
 
             {/* MESSAGES TAB */}
             {adminTab === 'messages' && (
@@ -900,26 +1066,19 @@ export const App: React.FC = () => {
             {/* TIPS TAB */}
             {adminTab === 'tips' && (
                 <>
-                {/* Seed DB Button (If Empty) */}
-                {tips.length === 0 && (
-                    <div className="bg-yellow-900/20 border border-yellow-700 p-4 rounded-xl mb-6 flex justify-between items-center">
-                        <div className="text-yellow-200 text-sm">
-                            <span className="font-bold block mb-1">Database is Empty</span>
-                            Click to add sample tips and news to get started.
-                        </div>
-                        <button 
-                            onClick={handleSeedDB}
-                            className="bg-yellow-600 hover:bg-yellow-500 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center transition-colors"
-                        >
-                            <Database size={14} className="mr-2"/> Initialize Sample Data
-                        </button>
-                    </div>
-                )}
-
                 {/* New Tip Form */}
                 <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl mb-8">
-                    <h3 className="text-xl font-bold text-white mb-4 flex items-center"><Plus className="mr-2" /> New Tip Entry</h3>
-                    <form onSubmit={handleAddTip} className="space-y-4">
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-xl font-bold text-white flex items-center">
+                            {editingTipId ? <Edit3 className="mr-2 text-brazil-yellow"/> : <Plus className="mr-2" />} 
+                            {editingTipId ? 'Edit Tip Entry' : 'New Tip Entry'}
+                        </h3>
+                        {editingTipId && (
+                            <button onClick={cancelEdit} className="text-xs text-slate-400 hover:text-white underline">Cancel Edit</button>
+                        )}
+                    </div>
+
+                    <form onSubmit={handleAddOrUpdateTip} className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <select 
                         value={newTip.category} 
@@ -1067,9 +1226,9 @@ export const App: React.FC = () => {
                     <button 
                         type="submit" 
                         disabled={isGeneratingAI}
-                        className="w-full bg-brazil-green hover:bg-green-600 text-white font-bold py-3 rounded-xl transition-all flex items-center justify-center shadow-lg"
+                        className={`w-full font-bold py-3 rounded-xl transition-all flex items-center justify-center shadow-lg ${editingTipId ? 'bg-brazil-yellow text-black hover:bg-yellow-400' : 'bg-brazil-green hover:bg-green-600 text-white'}`}
                     >
-                        <Save className="mr-2"/> Post Maestro Tip
+                        {editingTipId ? <><Edit3 className="mr-2" size={18}/> Update Tip</> : <><Save className="mr-2" size={18}/> Post Maestro Tip</>}
                     </button>
                     </form>
                 </div>
@@ -1085,6 +1244,7 @@ export const App: React.FC = () => {
                         onSettle={handleSettleTip} 
                         onDelete={handleDeleteTip} 
                         onVerify={handleVerifyTip}
+                        onEdit={startEditTip}
                     />
                     ))}
                 </div>

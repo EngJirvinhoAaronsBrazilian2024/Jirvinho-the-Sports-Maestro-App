@@ -121,6 +121,59 @@ class MockDBService {
       return stored ? JSON.parse(stored) : null;
   }
 
+  async getAllUsers(): Promise<User[]> {
+      // In a real mock implementation, we'd need a separate 'users' table. 
+      // For this simple mock, we will iterate all localStorage keys starting with 'user_'
+      // combined with the active session user for display purposes.
+      const users: User[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith('user_')) {
+              try {
+                  const u = JSON.parse(localStorage.getItem(key)!);
+                  users.push(u);
+              } catch (e) {}
+          }
+      }
+      
+      // Add default mock users if not present
+      if (!users.find(u => u.email === 'admin@jirvinho.com')) {
+          users.push({ uid: 'admin_001', email: 'admin@jirvinho.com', role: UserRole.ADMIN, displayName: 'The Maestro' });
+      }
+      if (!users.find(u => u.email === 'user@test.com')) {
+          users.push({ uid: 'user_001', email: 'user@test.com', role: UserRole.USER, displayName: 'Sports Fan' });
+      }
+      return users;
+  }
+
+  async updateUserRole(uid: string, newRole: UserRole): Promise<void> {
+      // Find user by iterating keys
+      for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith('user_')) {
+              const u = JSON.parse(localStorage.getItem(key)!);
+              if (u.uid === uid) {
+                  u.role = newRole;
+                  localStorage.setItem(key, JSON.stringify(u));
+                  return;
+              }
+          }
+      }
+  }
+
+  async deleteUser(uid: string): Promise<void> {
+       for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith('user_')) {
+              const u = JSON.parse(localStorage.getItem(key)!);
+              if (u.uid === uid) {
+                  localStorage.removeItem(key);
+                  return;
+              }
+          }
+      }
+  }
+
   async login(email: string, password: string): Promise<User> {
     // Instant login
     let user: User | null = null;
@@ -199,7 +252,12 @@ class MockDBService {
   }
 
   async updateTip(tip: Tip): Promise<void> {
-      // Stub for interface compatibility
+      const tips = await this.getTips();
+      const index = tips.findIndex(t => t.id === tip.id);
+      if (index > -1) {
+          tips[index] = tip;
+          localStorage.setItem(this.tipsKey, JSON.stringify(tips));
+      }
   }
 
   async deleteTip(id: string): Promise<void> {

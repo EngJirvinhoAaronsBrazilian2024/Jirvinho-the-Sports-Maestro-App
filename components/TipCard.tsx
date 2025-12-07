@@ -1,5 +1,5 @@
 import React from 'react';
-import { Clock, CheckCircle2, XCircle, MinusCircle, ThumbsUp, ThumbsDown, Copy, Check, List, Share2, Wand2, ArrowRight } from 'lucide-react';
+import { Clock, CheckCircle2, XCircle, MinusCircle, ThumbsUp, ThumbsDown, Copy, Check, List, Share2, Wand2, ArrowRight, Edit3 } from 'lucide-react';
 import { Tip, TipStatus, TipCategory } from '../types';
 
 interface TipCardProps {
@@ -9,9 +9,10 @@ interface TipCardProps {
   onDelete?: (id: string) => void;
   onVote?: (id: string, type: 'agree' | 'disagree') => void;
   onVerify?: (tip: Tip) => void;
+  onEdit?: (tip: Tip) => void;
 }
 
-export const TipCard: React.FC<TipCardProps> = ({ tip, isAdmin, onSettle, onDelete, onVote, onVerify }) => {
+export const TipCard: React.FC<TipCardProps> = ({ tip, isAdmin, onSettle, onDelete, onVote, onVerify, onEdit }) => {
   const [scoreInput, setScoreInput] = React.useState('');
   const [hasVoted, setHasVoted] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
@@ -132,9 +133,9 @@ export const TipCard: React.FC<TipCardProps> = ({ tip, isAdmin, onSettle, onDele
                 className="w-full flex items-center justify-between bg-slate-800/50 hover:bg-slate-800 border border-dashed border-slate-600 rounded-lg px-4 py-2 group transition-all"
              >
                  <span className="text-xs font-mono text-slate-400 tracking-widest">{tip.bettingCode}</span>
-                 <span className="text-[10px] font-bold text-brazil-green flex items-center">
+                 <span className="text-xs font-bold text-brazil-green flex items-center">
                     {copied ? <Check size={12} className="mr-1"/> : <Copy size={12} className="mr-1 group-hover:scale-110 transition-transform"/>} 
-                    {copied ? 'COPIED' : 'COPY CODE'}
+                    {copied ? 'COPIED' : 'COPY'}
                  </span>
              </button>
          )}
@@ -181,6 +182,7 @@ export const TipCard: React.FC<TipCardProps> = ({ tip, isAdmin, onSettle, onDele
       {/* Admin Quick Actions Overlay */}
       {isAdmin && (
         <div className="absolute top-2 right-2 flex flex-col gap-1 opacity-0 hover:opacity-100 transition-opacity p-2 bg-slate-900/90 rounded-xl border border-slate-700 z-10">
+           {onEdit && <button onClick={() => onEdit(tip)} className="p-1.5 bg-slate-700 text-white rounded hover:bg-slate-600"><Edit3 size={14}/></button>}
            <button onClick={() => onDelete && onDelete(tip.id)} className="p-1.5 bg-red-500/20 text-red-500 rounded hover:bg-red-500 hover:text-white"><XCircle size={14}/></button>
            {tip.status === TipStatus.PENDING && onSettle && (
                <>
