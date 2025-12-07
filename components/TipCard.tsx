@@ -181,14 +181,49 @@ export const TipCard: React.FC<TipCardProps> = ({ tip, isAdmin, onSettle, onDele
 
       {/* Admin Quick Actions Overlay */}
       {isAdmin && (
-        <div className="absolute top-2 right-2 flex flex-col gap-1 opacity-0 hover:opacity-100 transition-opacity p-2 bg-slate-900/90 rounded-xl border border-slate-700 z-10">
-           {onEdit && <button onClick={() => onEdit(tip)} className="p-1.5 bg-slate-700 text-white rounded hover:bg-slate-600"><Edit3 size={14}/></button>}
-           <button onClick={() => onDelete && onDelete(tip.id)} className="p-1.5 bg-red-500/20 text-red-500 rounded hover:bg-red-500 hover:text-white"><XCircle size={14}/></button>
+        <div className="absolute top-2 right-2 flex flex-col gap-1 p-2 bg-slate-900/90 rounded-xl border border-slate-700 z-10 shadow-lg">
+           {onEdit && (
+             <button 
+               onClick={(e) => { e.stopPropagation(); onEdit(tip); }} 
+               className="p-1.5 bg-slate-700 text-white rounded hover:bg-slate-600 transition-colors"
+               type="button"
+             >
+               <Edit3 size={14}/>
+             </button>
+           )}
+           <button 
+             onClick={(e) => { e.stopPropagation(); onDelete && onDelete(tip.id); }} 
+             className="p-1.5 bg-red-500/20 text-red-500 rounded hover:bg-red-500 hover:text-white transition-colors"
+             type="button"
+           >
+             <XCircle size={14}/>
+           </button>
+           
            {tip.status === TipStatus.PENDING && onSettle && (
                <>
-                <button onClick={() => onSettle(tip.id, TipStatus.WON, '1-0')} className="p-1.5 bg-green-500/20 text-green-500 rounded hover:bg-green-500 hover:text-white"><Check size={14}/></button>
-                <button onClick={() => onSettle(tip.id, TipStatus.LOST, '0-1')} className="p-1.5 bg-red-500/20 text-red-500 rounded hover:bg-red-500 hover:text-white"><XCircle size={14}/></button>
-                {onVerify && <button onClick={() => onVerify(tip)} className="p-1.5 bg-blue-500/20 text-blue-500 rounded hover:bg-blue-500 hover:text-white"><Wand2 size={14}/></button>}
+                <button 
+                  onClick={(e) => { e.stopPropagation(); onSettle(tip.id, TipStatus.WON, '1-0'); }} 
+                  className="p-1.5 bg-green-500/20 text-green-500 rounded hover:bg-green-500 hover:text-white transition-colors"
+                  type="button"
+                >
+                  <Check size={14}/>
+                </button>
+                <button 
+                  onClick={(e) => { e.stopPropagation(); onSettle(tip.id, TipStatus.LOST, '0-1'); }} 
+                  className="p-1.5 bg-red-500/20 text-red-500 rounded hover:bg-red-500 hover:text-white transition-colors"
+                  type="button"
+                >
+                  <XCircle size={14}/>
+                </button>
+                {onVerify && (
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); onVerify(tip); }} 
+                    className="p-1.5 bg-blue-500/20 text-blue-500 rounded hover:bg-blue-500 hover:text-white transition-colors"
+                    type="button"
+                  >
+                    <Wand2 size={14}/>
+                  </button>
+                )}
                </>
            )}
         </div>

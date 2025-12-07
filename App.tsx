@@ -235,9 +235,9 @@ export const App: React.FC = () => {
   };
 
   const handleDeleteTip = async (id: string) => {
-      if (confirm('Delete this tip?')) {
+      if (window.confirm('Delete this tip?')) {
           await dbService.deleteTip(id);
-          if (user) fetchData(user);
+          fetchData(user); // Force Refresh
       }
   };
 
@@ -251,7 +251,7 @@ export const App: React.FC = () => {
       const result = await checkBetResult(tip);
       if (result.status !== 'UNKNOWN' && result.status !== 'ERROR') {
           const confirmMsg = `AI Verification Result:\nStatus: ${result.status}\nScore: ${result.score}\nReason: ${result.reason}\n\nUpdate this tip?`;
-          if (confirm(confirmMsg)) {
+          if (window.confirm(confirmMsg)) {
               // @ts-ignore
               await dbService.settleTip(tip.id, result.status as TipStatus, result.score);
               if (user) fetchData(user);
@@ -294,9 +294,9 @@ export const App: React.FC = () => {
   };
 
   const handleDeleteNews = async (id: string) => {
-      if (confirm('Delete this news?')) {
+      if (window.confirm('Delete this news?')) {
           await dbService.deleteNews(id);
-          if (user) fetchData(user);
+          fetchData(user); // Force refresh
       }
   };
 
@@ -313,9 +313,9 @@ export const App: React.FC = () => {
   };
 
   const handleDeleteSlide = async (id: string) => {
-      if (confirm("Delete this slide?")) {
+      if (window.confirm("Delete this slide?")) {
           await dbService.deleteSlide(id);
-          if (user) fetchData(user);
+          fetchData(user); // Force refresh
       }
   };
 
@@ -325,7 +325,7 @@ export const App: React.FC = () => {
       } else {
           await dbService.deleteUser(uid);
       }
-      if (user) fetchData(user);
+      fetchData(user); // Force refresh
   };
 
   const handleSendMessage = async () => {
@@ -561,7 +561,7 @@ export const App: React.FC = () => {
                               <h3 className="text-xl font-bold text-white mb-3 leading-tight group-hover:text-brazil-green transition-colors">{post.title}</h3>
                               <p className="text-slate-400 text-sm leading-relaxed mb-4">{post.body}</p>
                               {user?.role === UserRole.ADMIN && (
-                                  <button onClick={() => handleDeleteNews(post.id)} className="text-red-500 text-xs font-bold hover:underline">DELETE POST</button>
+                                  <button onClick={() => handleDeleteNews(post.id)} type="button" className="text-red-500 text-xs font-bold hover:underline">DELETE POST</button>
                               )}
                           </div>
                       </div>
@@ -932,6 +932,7 @@ export const App: React.FC = () => {
                                                <p className="text-xs text-slate-300">{slide.subtitle}</p>
                                                <button 
                                                   onClick={() => handleDeleteSlide(slide.id)}
+                                                  type="button"
                                                   className="absolute top-2 right-2 p-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
                                                >
                                                    <Trash2 size={16} />
