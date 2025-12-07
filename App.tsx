@@ -158,6 +158,11 @@ export const App: React.FC = () => {
          loggedUser = await dbService.login(email, password);
       } else if (authMode === 'signup') {
          loggedUser = await dbService.signUp(email, password, displayName);
+         // If signup successful but no immediate login (e.g. email confirmation required)
+         if (!loggedUser && !user) {
+             alert("Account created! Please check your email for confirmation before logging in.");
+             setAuthMode('login');
+         }
       } else {
          await dbService.resetPassword(email);
          alert('Password reset link sent to your email.');
@@ -168,7 +173,13 @@ export const App: React.FC = () => {
       // Note: onAuthStateChange will handle setting the user
       setLoading(false);
     } catch (err: any) {
-      setAuthError(err.message || 'Authentication failed');
+      console.error(err);
+      let msg = err.message || 'Authentication failed';
+      // Help user understand why their "old" mock credentials don't work
+      if (msg.includes('Invalid login credentials') || msg.includes('User not found')) {
+          msg = 'Invalid credentials. If you just switched databases, please Sign Up to create a new account.';
+      }
+      setAuthError(msg);
       setLoading(false);
     }
   };
@@ -452,7 +463,7 @@ export const App: React.FC = () => {
 
           {authError && (
             <div className="bg-red-500/10 border border-red-500 text-red-500 p-3 rounded-lg mb-4 text-sm flex items-center">
-               <XCircle size={16} className="mr-2"/> {authError}
+               <XCircle size={16} className="mr-2 flex-shrink-0"/> <span>{authError}</span>
             </div>
           )}
 
@@ -528,11 +539,11 @@ export const App: React.FC = () => {
                  <>
                     <button onClick={() => setAuthMode('forgot')} className="text-slate-400 hover:text-brazil-yellow">Forgot Password?</button>
                     <p className="text-slate-500">
-                        Don't have an account? <button onClick={() => setAuthMode('signup')} className="text-brazil-green font-bold hover:underline">Sign Up</button>
+                        Don't have an account? <button onClick={() => { setAuthMode('signup'); setAuthError(''); }} className="text-brazil-green font-bold hover:underline">Sign Up</button>
                     </p>
                  </>
              ) : (
-                 <button onClick={() => setAuthMode('login')} className="text-brazil-green font-bold hover:underline">Back to Login</button>
+                 <button onClick={() => { setAuthMode('login'); setAuthError(''); }} className="text-brazil-green font-bold hover:underline">Back to Login</button>
              )}
           </div>
 
