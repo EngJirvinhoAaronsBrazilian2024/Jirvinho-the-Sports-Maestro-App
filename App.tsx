@@ -69,7 +69,7 @@ export const App: React.FC = () => {
   const [contactMessage, setContactMessage] = useState('');
 
   // --- Optimized Fetch Data ---
-  const fetchData = useCallback(async (currentUser = user) => {
+  const fetchData = useCallback(async (currentUser: User | null) => {
     try {
         const [tipsData, newsData, statsData] = await Promise.all([
             dbService.getTips(),
@@ -99,49 +99,45 @@ export const App: React.FC = () => {
     } catch (error) {
         console.error("Error fetching data:", error);
     }
-  }, [user]);
+  }, []); // Stable callback with no dependencies
 
-  // --- Initialization & Polling ---
+  // --- Initialization ---
   useEffect(() => {
     let mounted = true;
 
-    const initAuth = async () => {
-        try {
-            const currentUser = await dbService.getCurrentUser();
-            if (mounted) {
-                setUser(currentUser);
-                if (currentUser) await fetchData(currentUser);
-            }
-        } catch (e) {
-            console.error("Auth Init Error", e);
-        } finally {
-            if (mounted) setIsInitializing(false);
-        }
-    };
-
-    initAuth();
-
+    // Subscribe to auth changes
     // @ts-ignore
     const { data: authListener } = dbService.onAuthStateChange((u) => {
-        if (mounted) {
-            setUser(u);
-            if (u) fetchData(u);
-            else {
-                setTips([]); setNews([]); setStats({winRate:0, totalTips:0, wonTips:0, streak:[]});
-            }
+        if (!mounted) return;
+        
+        // Deep comparison to prevent loop if object reference changes but content is same
+        setUser(prev => {
+            if (JSON.stringify(prev) === JSON.stringify(u)) return prev;
+            return u;
+        });
+        
+        if (u) {
+             fetchData(u);
+        } else {
+             setTips([]); setNews([]); setStats({winRate:0, totalTips:0, wonTips:0, streak:[]});
         }
+        setIsInitializing(false);
     });
-
-    const interval = setInterval(() => {
-        if (user) fetchData(user);
-    }, 15000);
 
     return () => {
         mounted = false;
-        clearInterval(interval);
         if (authListener?.subscription) authListener.subscription.unsubscribe();
     };
-  }, [fetchData, user]);
+  }, [fetchData]); // Only depends on stable fetchData
+
+  // --- Polling ---
+  useEffect(() => {
+      if (!user) return;
+      const interval = setInterval(() => {
+          fetchData(user);
+      }, 15000);
+      return () => clearInterval(interval);
+  }, [user, fetchData]);
 
 
   // --- Handlers ---
@@ -175,7 +171,7 @@ export const App: React.FC = () => {
 
   const handleVote = async (id: string, type: 'agree' | 'disagree') => {
     await dbService.voteOnTip(id, type);
-    fetchData();
+    if (user) fetchData(user);
   };
 
   // --- Admin Handlers ---
@@ -224,7 +220,7 @@ export const App: React.FC = () => {
             category: TipCategory.SINGLE,
             teams: '', league: LEAGUES[0], prediction: '', odds: 1.50, confidence: 'Medium', sport: 'Football', bettingCode: '', legs: [], kickoffTime: '', analysis: ''
           });
-          fetchData();
+          if (user) fetchData(user);
           alert(editingTipId ? "Tip Updated!" : "Tip Added!");
       } catch (e) {
           alert("Error saving tip.");
@@ -234,13 +230,13 @@ export const App: React.FC = () => {
   const handleDeleteTip = async (id: string) => {
       if (confirm('Delete this tip?')) {
           await dbService.deleteTip(id);
-          fetchData();
+          if (user) fetchData(user);
       }
   };
 
   const handleSettleTip = async (id: string, status: TipStatus, score: string) => {
       await dbService.settleTip(id, status, score);
-      fetchData();
+      if (user) fetchData(user);
   };
 
   const handleVerifyResult = async (tip: Tip) => {
@@ -251,7 +247,7 @@ export const App: React.FC = () => {
           if (confirm(confirmMsg)) {
               // @ts-ignore
               await dbService.settleTip(tip.id, result.status as TipStatus, result.score);
-              fetchData();
+              if (user) fetchData(user);
           }
       } else {
           alert(`Could not verify automatically.\nReason: ${result.reason}`);
@@ -269,14 +265,14 @@ export const App: React.FC = () => {
       // @ts-ignore
       await dbService.addNews(newNews);
       setNewNews({ title: '', category: 'Football', source: '', body: '', imageUrl: '', videoUrl: '', matchDate: '' });
-      fetchData();
+      if (user) fetchData(user);
       alert("News Posted!");
   };
 
   const handleDeleteNews = async (id: string) => {
       if (confirm('Delete this news?')) {
           await dbService.deleteNews(id);
-          fetchData();
+          if (user) fetchData(user);
       }
   };
 
@@ -286,14 +282,14 @@ export const App: React.FC = () => {
       } else {
           await dbService.deleteUser(uid);
       }
-      fetchData();
+      if (user) fetchData(user);
   };
 
   const handleSendMessage = async () => {
       if (!contactMessage.trim() || !user) return;
       await dbService.sendMessage(user.uid, user.displayName || 'User', contactMessage);
       setContactMessage('');
-      fetchData();
+      fetchData(user);
       alert("Message sent!");
   };
 
@@ -302,7 +298,7 @@ export const App: React.FC = () => {
       if (!text) return;
       await dbService.replyToMessage(msgId, text);
       setReplyText({ ...replyText, [msgId]: '' });
-      fetchData();
+      if (user) fetchData(user);
   };
 
   // --- RENDER HELPERS ---
