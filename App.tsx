@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { User, UserRole, Tip, NewsPost, MaestroStats, TipStatus, TipCategory, TipLeg, Message } from './types';
-import { dbService } from './services/db';
+import { mockDB as dbService } from './services/mockDb';
 import { generateMatchAnalysis, checkBetResult } from './services/geminiService';
 import { Layout } from './components/Layout';
 import { TipCard } from './components/TipCard';
@@ -99,6 +99,7 @@ export const App: React.FC = () => {
             const existingUser = await dbService.getCurrentUser();
             if (existingUser) {
                 setUser(existingUser);
+                // Fetch data immediately if user exists
                 await fetchData(existingUser);
             }
         } catch (e) {
@@ -115,6 +116,7 @@ export const App: React.FC = () => {
         if (newUser) {
             fetchData(newUser);
         }
+        // If auth state changes (e.g., late session recovery), ensure we stop initializing
         setIsInitializing(false);
     });
     
@@ -140,6 +142,8 @@ export const App: React.FC = () => {
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return; // Prevent double clicks logically, but keep UI active
+
     setAuthError('');
     setLoading(true);
     try {
@@ -164,10 +168,12 @@ export const App: React.FC = () => {
   };
 
   const handleLogout = async () => {
-    await dbService.logout();
-    setUser(null);
-    setTips([]);
-    setNews([]);
+    if (window.confirm("Are you sure you want to log out?")) {
+        await dbService.logout();
+        setUser(null);
+        setTips([]);
+        setNews([]);
+    }
   };
 
   // --- Admin Handlers ---
@@ -504,8 +510,8 @@ export const App: React.FC = () => {
 
             <button
               type="submit"
-              disabled={loading}
-              className="w-full bg-gradient-to-r from-brazil-green to-green-600 hover:from-green-500 hover:to-green-400 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg shadow-green-900/20 flex items-center justify-center"
+              // Removed disabled={loading} to make UI feel immediate as requested
+              className="w-full bg-gradient-to-r from-brazil-green to-green-600 hover:from-green-500 hover:to-green-400 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg shadow-green-900/20 flex items-center justify-center cursor-pointer"
             >
               {authMode === 'login' ? 'Sign In' : authMode === 'signup' ? 'Create Account' : 'Send Reset Link'}
             </button>
@@ -732,7 +738,7 @@ export const App: React.FC = () => {
       {/* --- SCORES PAGE (EMBED) --- */}
       {activeTab === 'scores' && (
         <div className="h-full flex flex-col">
-          <div className="flex justify-between items-center mb-4">
+          <div className="flex justify-between items-center mb-4 shrink-0">
               <h2 className="text-3xl font-black text-white italic tracking-tight">LIVE <span className="text-brazil-yellow">SCORES</span></h2>
               <a 
                  href="https://www.flashscore.mobi/" 
@@ -743,7 +749,8 @@ export const App: React.FC = () => {
                  <ExternalLink size={14} className="mr-1"/> Open Full Scoreboard
               </a>
           </div>
-          <div className="flex-1 bg-slate-900 rounded-2xl overflow-hidden shadow-xl border border-slate-700 relative min-h-[75vh]">
+          {/* Updated Responsive Height Calculation */}
+          <div className="bg-slate-900 rounded-2xl overflow-hidden shadow-xl border border-slate-700 relative h-[calc(100dvh-160px)] md:h-full md:flex-1">
              {/* Uses ScoreBat Widget for Modern Dark Mode Look */}
              <iframe 
                 src="https://www.scorebat.com/embed/livescore/" 

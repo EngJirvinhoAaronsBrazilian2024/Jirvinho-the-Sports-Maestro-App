@@ -78,6 +78,7 @@ class MockDBService {
   private newsKey = 'jirvinho_news';
   private userKey = 'jirvinho_user';
   private messagesKey = 'jirvinho_messages';
+  private authListeners: ((user: User | null) => void)[] = [];
 
   constructor() {
     if (!localStorage.getItem(this.tipsKey)) {
@@ -94,6 +95,26 @@ class MockDBService {
 
   // --- AUTH ---
   
+  onAuthStateChange(callback: (user: User | null) => void) {
+      this.authListeners.push(callback);
+      // Fire immediately with current state
+      this.getCurrentUser().then(user => callback(user));
+      
+      return {
+          data: {
+              subscription: {
+                  unsubscribe: () => {
+                      this.authListeners = this.authListeners.filter(cb => cb !== callback);
+                  }
+              }
+          }
+      };
+  }
+
+  private notifyAuthListeners(user: User | null) {
+      this.authListeners.forEach(cb => cb(user));
+  }
+
   async getCurrentUser(): Promise<User | null> {
       const stored = sessionStorage.getItem(this.userKey);
       return stored ? JSON.parse(stored) : null;
@@ -101,26 +122,27 @@ class MockDBService {
 
   async login(email: string, password: string): Promise<User> {
     // Instant login (removed setTimeout)
+    let user: User | null = null;
     if (email === 'admin@jirvinho.com' && password === 'admin123') {
-      const user: User = { uid: 'admin_001', email, role: UserRole.ADMIN, displayName: 'The Maestro' };
-      sessionStorage.setItem(this.userKey, JSON.stringify(user));
-      return user;
+      user = { uid: 'admin_001', email, role: UserRole.ADMIN, displayName: 'The Maestro' };
     } else if (email === 'user@test.com' && password === 'user123') {
-      const user: User = { uid: 'user_001', email, role: UserRole.USER, displayName: 'Sports Fan' };
-      sessionStorage.setItem(this.userKey, JSON.stringify(user));
-      return user;
+      user = { uid: 'user_001', email, role: UserRole.USER, displayName: 'Sports Fan' };
     } else {
          const storedUser = localStorage.getItem(`user_${email}`);
          if (storedUser) {
              const u = JSON.parse(storedUser);
              if (u.password === password) {
-                 const sessionUser: User = { uid: u.uid, email: u.email, role: u.role, displayName: u.displayName };
-                 sessionStorage.setItem(this.userKey, JSON.stringify(sessionUser));
-                 return sessionUser;
+                 user = { uid: u.uid, email: u.email, role: u.role, displayName: u.displayName };
              }
          }
-         throw new Error('Invalid credentials.');
     }
+
+    if (user) {
+        sessionStorage.setItem(this.userKey, JSON.stringify(user));
+        this.notifyAuthListeners(user);
+        return user;
+    }
+    throw new Error('Invalid credentials.');
   }
 
   async signUp(email: string, password: string, displayName: string): Promise<User> {
@@ -139,6 +161,7 @@ class MockDBService {
       
       const sessionUser: User = { uid: newUser.uid, email: newUser.email, role: newUser.role, displayName: newUser.displayName };
       sessionStorage.setItem(this.userKey, JSON.stringify(sessionUser));
+      this.notifyAuthListeners(sessionUser);
       return sessionUser;
   }
 
@@ -147,8 +170,9 @@ class MockDBService {
       return Promise.resolve();
   }
 
-  logout() {
+  async logout() {
     sessionStorage.removeItem(this.userKey);
+    this.notifyAuthListeners(null);
   }
 
   // --- TIPS ---
@@ -169,6 +193,10 @@ class MockDBService {
       };
       tips.push(newTip);
       localStorage.setItem(this.tipsKey, JSON.stringify(tips));
+  }
+
+  async updateTip(tip: Tip): Promise<void> {
+      // Stub for interface compatibility
   }
 
   async deleteTip(id: string): Promise<void> {
@@ -279,6 +307,13 @@ class MockDBService {
           msgs[index].isRead = true;
           localStorage.setItem(this.messagesKey, JSON.stringify(msgs));
       }
+  }
+
+  async seedDatabase(): Promise<void> {
+      localStorage.setItem(this.tipsKey, JSON.stringify(MOCK_TIPS));
+      localStorage.setItem(this.newsKey, JSON.stringify(MOCK_NEWS));
+      // Reset Messages
+      localStorage.setItem(this.messagesKey, JSON.stringify([]));
   }
 }
 
