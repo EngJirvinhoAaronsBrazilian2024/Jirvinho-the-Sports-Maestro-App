@@ -1,5 +1,6 @@
+
 import { supabase } from './supabaseClient';
-import { Tip, TipStatus, NewsPost, User, UserRole, MaestroStats, TipCategory, Message } from '../types';
+import { Tip, TipStatus, NewsPost, User, UserRole, MaestroStats, TipCategory, Message, Slide } from '../types';
 
 class DBService {
   
@@ -8,26 +9,29 @@ class DBService {
   // Add a listener for auth state changes
   onAuthStateChange(callback: (user: User | null) => void) {
     return supabase.auth.onAuthStateChange(async (event, session) => {
-      // console.log("Auth State Changed:", event, session?.user?.email);
       
       if (session?.user) {
         // Fetch profile to get role
-        // Note: If 'profiles' table doesn't exist, this will error but we fallback to metadata/USER role.
         const { data: profile } = await supabase
           .from('profiles')
           .select('*')
           .eq('id', session.user.id)
-          .single()
-          .catch(() => ({ data: null })); // Robustness: Ignore error if profile not found
+          .single();
 
         // HARDCODED ADMIN OVERRIDE FOR OWNER
-        // This ensures that even if the DB is empty, the owner can Sign Up and immediately be Admin.
+        // Critical Fix: Sync this to DB so RLS policies work
         const isAdminEmail = session.user.email === 'admin@jirvinho.com';
+        let role = (profile?.role as UserRole) || UserRole.USER;
+
+        if (isAdminEmail && role !== UserRole.ADMIN) {
+            await supabase.from('profiles').update({ role: 'ADMIN' }).eq('id', session.user.id);
+            role = UserRole.ADMIN;
+        }
 
         const user: User = {
           uid: session.user.id,
           email: session.user.email!,
-          role: isAdminEmail ? UserRole.ADMIN : ((profile?.role as UserRole) || UserRole.USER),
+          role: role,
           displayName: profile?.display_name || session.user.user_metadata.displayName || 'User'
         };
         callback(user);
@@ -51,16 +55,22 @@ class DBService {
         .from('profiles')
         .select('*')
         .eq('id', session.user.id)
-        .single()
-        .catch(() => ({ data: null }));
+        .single();
 
         // HARDCODED ADMIN OVERRIDE FOR OWNER
         const isAdminEmail = session.user.email === 'admin@jirvinho.com';
+        let role = (profile?.role as UserRole) || UserRole.USER;
+
+        // Sync Admin Status to DB if missing
+        if (isAdminEmail && role !== UserRole.ADMIN) {
+             await supabase.from('profiles').update({ role: 'ADMIN' }).eq('id', session.user.id);
+             role = UserRole.ADMIN;
+        }
 
         return {
         uid: session.user.id,
         email: session.user.email!,
-        role: isAdminEmail ? UserRole.ADMIN : ((profile?.role as UserRole) || UserRole.USER),
+        role: role,
         displayName: profile?.display_name || session.user.user_metadata.displayName || 'User'
         };
     } catch (e) {
@@ -77,6 +87,7 @@ class DBService {
   }
 
   async signUp(email: string, password: string, displayName: string): Promise<User> {
+    // We pass displayName in options.data so the SQL Trigger can use it
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -84,7 +95,12 @@ class DBService {
         data: { displayName }
       }
     });
+    
     if (error) throw error;
+    
+    // NOTE: We do NOT insert into profiles manually here anymore.
+    // The SQL Trigger `on_auth_user_created` handles it.
+    
     if (!data.user) throw new Error("Signup failed");
     return { uid: data.user.id, email: email, role: UserRole.USER, displayName };
   }
@@ -97,6 +113,32 @@ class DBService {
     const { error } = await supabase.auth.resetPasswordForEmail(email);
     if (error) throw error;
   }
+  
+  // --- USERS ---
+  
+  async getAllUsers(): Promise<User[]> {
+      const { data, error } = await supabase.from('profiles').select('*');
+      if (error) return [];
+      
+      return data.map((p: any) => ({
+          uid: p.id,
+          email: p.email,
+          role: p.role as UserRole,
+          displayName: p.display_name
+      }));
+  }
+  
+  async updateUserRole(uid: string, newRole: UserRole): Promise<void> {
+      const { error } = await supabase.from('profiles').update({ role: newRole }).eq('id', uid);
+      if (error) throw error;
+  }
+  
+  async deleteUser(uid: string): Promise<void> {
+      // Note: Client SDK cannot delete from auth.users easily. 
+      // We delete from profiles which effectively removes them from the app logic.
+      const { error } = await supabase.from('profiles').delete().eq('id', uid);
+      if (error) throw error;
+  }
 
   // --- TIPS ---
 
@@ -108,7 +150,6 @@ class DBService {
         .order('created_at', { ascending: false });
         
         if (error) {
-            // Log but don't crash
             console.warn('SUPABASE TIPS FETCH ERROR:', error.message);
             return [];
         }
@@ -116,11 +157,11 @@ class DBService {
         if (!data) return [];
 
         return data.map((t: any) => ({
-        ...t,
-        kickoffTime: t.kickoff_time,
-        bettingCode: t.betting_code,
-        resultScore: t.result_score,
-        createdAt: t.created_at ? Number(t.created_at) : Date.now()
+            ...t,
+            kickoffTime: t.kickoff_time,
+            bettingCode: t.betting_code,
+            resultScore: t.result_score,
+            createdAt: t.created_at ? Number(t.created_at) : Date.now()
         }));
     } catch (err: any) {
         console.warn('Network/Fetch Error (Tips):', err.message);
@@ -133,7 +174,7 @@ class DBService {
       category: tip.category,
       teams: tip.teams,
       league: tip.league,
-      kickoff_time: tip.kickoffTime,
+      kickoff_time: tip.kickoffTime, // Ensure this matches SQL column snake_case
       sport: tip.sport,
       prediction: tip.prediction,
       odds: tip.odds,
@@ -145,26 +186,38 @@ class DBService {
       votes: { agree: 0, disagree: 0 },
       created_at: Date.now()
     });
+    
     if (error) {
-        console.error('SUPABASE ADD TIP ERROR:', error.message);
+        console.error("ADD TIP ERROR:", error);
         throw error;
     }
   }
 
-  async updateTip(updatedTip: Tip): Promise<void> {
-     // Placeholder for future update logic
+  async updateTip(tip: Tip): Promise<void> {
+     const { error } = await supabase.from('tips').update({
+         category: tip.category,
+         teams: tip.teams,
+         league: tip.league,
+         kickoff_time: tip.kickoffTime,
+         prediction: tip.prediction,
+         odds: tip.odds,
+         analysis: tip.analysis,
+         betting_code: tip.bettingCode,
+         legs: tip.legs
+     }).eq('id', tip.id);
+     
+     if (error) throw error;
   }
 
   async voteOnTip(id: string, type: 'agree' | 'disagree'): Promise<void> {
     try {
-        const { data: tip } = await supabase.from('tips').select('votes').eq('id', id).single();
-        if (tip) {
-            const votes = tip.votes || { agree: 0, disagree: 0 };
-            if (type === 'agree') votes.agree++;
-            else votes.disagree++;
-            
-            await supabase.from('tips').update({ votes }).eq('id', id);
-        }
+        // Use the secure RPC function defined in SQL
+        const { error } = await supabase.rpc('vote_for_tip', { 
+            tip_id: id, 
+            vote_type: type 
+        });
+        
+        if (error) throw error;
     } catch (e) {
         console.error("Vote failed", e);
     }
@@ -187,34 +240,37 @@ class DBService {
 
   async getStats(): Promise<MaestroStats> {
     try {
-        const { data: tips, error } = await supabase.from('tips').select('status, created_at').neq('status', 'PENDING');
-        
-        if (error) {
-            console.warn('Stats fetch warning:', error.message);
-            return { winRate: 0, totalTips: 0, wonTips: 0, streak: [] };
-        }
-        
-        if (!tips) return { winRate: 0, totalTips: 0, wonTips: 0, streak: [] };
+        // Optimized: Only fetch status counts, not full rows
+        const { data: settledTips, error } = await supabase
+             .from('tips')
+             .select('status')
+             .neq('status', 'PENDING');
 
-        let wins = 0;
-        tips.forEach((t: any) => {
-        if (t.status === TipStatus.WON) wins++;
-        });
+        if (error || !settledTips) return { winRate: 0, totalTips: 0, wonTips: 0, streak: [] };
 
-        const winRate = tips.length > 0 ? (wins / tips.length) * 100 : 0;
-        const streak = tips
-            .sort((a: any, b: any) => (Number(b.created_at) || 0) - (Number(a.created_at) || 0))
-            .slice(0, 10)
-            .map((t: any) => t.status as TipStatus);
+        const totalTips = settledTips.length;
+        if (totalTips === 0) return { winRate: 0, totalTips: 0, wonTips: 0, streak: [] };
+
+        const wonTips = settledTips.filter((t: any) => t.status === TipStatus.WON).length;
+        const winRate = (wonTips / totalTips) * 100;
+
+        // Fetch just the last 10 for streak
+        const { data: recent } = await supabase
+            .from('tips')
+            .select('status')
+            .neq('status', 'PENDING')
+            .order('created_at', { ascending: false })
+            .limit(10);
+
+        const streak = recent ? recent.map((t: any) => t.status as TipStatus) : [];
 
         return {
-        winRate: parseFloat(winRate.toFixed(1)),
-        totalTips: tips.length,
-        wonTips: wins,
-        streak
+          winRate: parseFloat(winRate.toFixed(1)),
+          totalTips,
+          wonTips,
+          streak
         };
     } catch (err: any) {
-        console.warn('Network/Fetch Error (Stats):', err.message);
         return { winRate: 0, totalTips: 0, wonTips: 0, streak: [] };
     }
   }
@@ -228,11 +284,7 @@ class DBService {
         .select('*')
         .order('created_at', { ascending: false });
         
-        if (error) {
-            console.warn('SUPABASE NEWS FETCH ERROR:', error.message);
-            return [];
-        }
-        
+        if (error) return [];
         if (!data) return [];
         
         return data.map((n: any) => ({
@@ -243,7 +295,6 @@ class DBService {
             createdAt: n.created_at ? Number(n.created_at) : Date.now()
         }));
     } catch (err: any) {
-        console.warn('Network/Fetch Error (News):', err.message);
         return [];
     }
   }
@@ -261,10 +312,59 @@ class DBService {
     });
     if (error) throw error;
   }
+
+  async updateNews(post: NewsPost): Promise<void> {
+    const { error } = await supabase.from('news').update({
+        title: post.title,
+        category: post.category,
+        source: post.source,
+        body: post.body,
+        image_url: post.imageUrl,
+        video_url: post.videoUrl,
+        match_date: post.matchDate
+    }).eq('id', post.id);
+    if (error) throw error;
+  }
   
   async deleteNews(id: string): Promise<void> {
     const { error } = await supabase.from('news').delete().eq('id', id);
     if (error) throw error;
+  }
+  
+  // --- SLIDES ---
+  
+  async getSlides(): Promise<Slide[]> {
+      const { data, error } = await supabase.from('slides').select('*').order('created_at', { ascending: false });
+      if (error) return [];
+      
+      return data.map((s: any) => ({
+          ...s,
+          createdAt: s.created_at ? Number(s.created_at) : Date.now()
+      }));
+  }
+  
+  async addSlide(slide: Partial<Slide>): Promise<void> {
+      const { error } = await supabase.from('slides').insert({
+          image: slide.image,
+          title: slide.title,
+          subtitle: slide.subtitle,
+          created_at: Date.now()
+      });
+      if (error) throw error;
+  }
+
+  async updateSlide(slide: Slide): Promise<void> {
+      const { error } = await supabase.from('slides').update({
+          image: slide.image,
+          title: slide.title,
+          subtitle: slide.subtitle
+      }).eq('id', slide.id);
+      if (error) throw error;
+  }
+  
+  async deleteSlide(id: string): Promise<void> {
+      const { error } = await supabase.from('slides').delete().eq('id', id);
+      if (error) throw error;
   }
 
   // --- MESSAGES ---
@@ -272,10 +372,7 @@ class DBService {
   async getMessages(): Promise<Message[]> {
       try {
         const { data, error } = await supabase.from('messages').select('*').order('created_at', { ascending: false });
-        if (error) {
-            console.warn('SUPABASE MESSAGES ERROR:', error.message);
-            return [];
-        }
+        if (error) return [];
         if (!data) return [];
         
         return data.map((m: any) => ({
@@ -286,7 +383,6 @@ class DBService {
             isRead: m.is_read
         }));
       } catch (e) {
-          console.warn("Msg error", e);
           return [];
       }
   }
@@ -299,10 +395,7 @@ class DBService {
             .eq('user_id', userId)
             .order('created_at', { ascending: false });
             
-        if (error) {
-            console.warn('SUPABASE USER MESSAGES ERROR:', error.message);
-            return [];
-        }
+        if (error) return [];
         if (!data) return [];
 
         return data.map((m: any) => ({
@@ -313,7 +406,6 @@ class DBService {
             isRead: m.is_read
         }));
       } catch (e) {
-          console.warn("User Msg error", e);
           return [];
       }
   }
@@ -337,50 +429,9 @@ class DBService {
       if (error) throw error;
   }
 
-  // --- SEED HELPER ---
-  async seedDatabase(): Promise<void> {
-      console.log("Seeding database...");
-      
-      // 1. Seed News
-      await this.addNews({
-          title: "Welcome to Jirvinho Sports Maestro!",
-          category: "Announcement",
-          source: "Jirvinho Admin",
-          body: "We are live! Stay tuned for daily tips and analysis.",
-          matchDate: new Date().toISOString()
-      });
-
-      // 2. Seed Tips
-      await this.addTip({
-          category: TipCategory.SINGLE,
-          teams: "Man City vs Arsenal",
-          league: "Premier League",
-          kickoffTime: new Date(Date.now() + 86400000).toISOString(),
-          sport: "Football",
-          prediction: "Over 2.5 Goals",
-          odds: 1.85,
-          confidence: "High",
-          analysis: "High stakes match, both teams will push for goals.",
-          bettingCode: "EX-123",
-          legs: []
-      });
-
-      await this.addTip({
-          category: TipCategory.ODD_4_PLUS,
-          teams: "Accumulator",
-          league: "Multiple",
-          kickoffTime: new Date(Date.now() + 86400000).toISOString(),
-          sport: "Football",
-          prediction: "See Selections",
-          odds: 5.50,
-          confidence: "Medium",
-          analysis: "Value selections for the weekend.",
-          bettingCode: "ACC-555",
-          legs: [
-              {teams: "Real Madrid vs Barca", league: "La Liga", prediction: "Real Madrid Win"},
-              {teams: "Bayern vs Dortmund", league: "Bundesliga", prediction: "Over 3.5 Goals"}
-          ]
-      });
+  async deleteMessage(id: string): Promise<void> {
+      const { error } = await supabase.from('messages').delete().eq('id', id);
+      if (error) throw error;
   }
 }
 

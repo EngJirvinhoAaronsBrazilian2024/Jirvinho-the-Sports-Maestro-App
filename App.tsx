@@ -1,8 +1,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { User, UserRole, Tip, NewsPost, MaestroStats, TipStatus, TipCategory, TipLeg, Message, Slide } from './types';
-// Using Mock DB as per current configuration
-import { mockDB as dbService } from './services/mockDb';
+import { dbService } from './services/db';
 import { generateMatchAnalysis, checkBetResult } from './services/geminiService';
 import { Layout } from './components/Layout';
 import { TipCard } from './components/TipCard';
@@ -91,6 +90,8 @@ export const App: React.FC = () => {
   // Admin State
   const [adminTab, setAdminTab] = useState<'overview' | 'tips' | 'news' | 'slides' | 'users' | 'messages'>('overview');
   const [editingTipId, setEditingTipId] = useState<string | null>(null);
+  const [editingNewsId, setEditingNewsId] = useState<string | null>(null);
+  const [editingSlideId, setEditingSlideId] = useState<string | null>(null);
   
   const [newTip, setNewTip] = useState<Partial<Tip>>({
     category: TipCategory.SINGLE,
@@ -102,6 +103,7 @@ export const App: React.FC = () => {
   const [newSlide, setNewSlide] = useState<Partial<Slide>>({ title: '', subtitle: '', image: '' });
   
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [replyText, setReplyText] = useState<{ [key: string]: string }>({});
 
   // User Contact State
@@ -129,12 +131,8 @@ export const App: React.FC = () => {
             setMessages(msgs);
 
             if (currentUser.role === UserRole.ADMIN) {
-                // @ts-ignore - mockDb specific method
-                if(dbService.getAllUsers) {
-                    // @ts-ignore
-                    const uList = await dbService.getAllUsers();
-                    setAllUsers(uList);
-                }
+                const uList = await dbService.getAllUsers();
+                setAllUsers(uList);
             }
         }
     } catch (error) {
@@ -147,8 +145,7 @@ export const App: React.FC = () => {
     let mounted = true;
 
     // Subscribe to auth changes
-    // @ts-ignore
-    const { data: authListener } = dbService.onAuthStateChange((u) => {
+    const { data: authListener } = dbService.onAuthStateChange(async (u) => {
         if (!mounted) return;
         
         // Deep comparison to prevent loop if object reference changes but content is same
@@ -158,7 +155,7 @@ export const App: React.FC = () => {
         });
         
         if (u) {
-             fetchData(u);
+             await fetchData(u);
         } else {
              setTips([]); setNews([]); setSlides([]); setStats({winRate:0, totalTips:0, wonTips:0, streak:[]});
         }
@@ -199,7 +196,7 @@ export const App: React.FC = () => {
         setAuthMode('login');
       }
     } catch (err: any) {
-      setAuthError(err.message);
+      setAuthError(err.message || "Authentication failed");
     } finally {
       setLoading(false);
     }
@@ -247,24 +244,32 @@ export const App: React.FC = () => {
           return;
       }
       
+      setIsSaving(true);
       try {
           if (editingTipId) {
              const updatedTip = { ...newTip, id: editingTipId } as Tip;
              await dbService.updateTip(updatedTip);
              setEditingTipId(null);
           } else {
-             // @ts-ignore
-             await dbService.addTip(newTip);
+             // Ensure optional fields are handled strings if empty
+             const cleanTip = {
+                 ...newTip,
+                 kickoffTime: newTip.kickoffTime || new Date().toISOString()
+             };
+             await dbService.addTip(cleanTip as Omit<Tip, 'id' | 'createdAt' | 'status' | 'votes'>);
           }
           
           setNewTip({
             category: TipCategory.SINGLE,
             teams: '', league: LEAGUES[0], prediction: '', odds: 1.50, confidence: 'Medium', sport: 'Football', bettingCode: '', legs: [], kickoffTime: '', analysis: ''
           });
-          if (user) fetchData(user);
-          alert(editingTipId ? "Tip Updated!" : "Tip Added!");
-      } catch (e) {
-          alert("Error saving tip.");
+          if (user) await fetchData(user);
+          alert(editingTipId ? "Tip Updated!" : "Tip Added Successfully!");
+      } catch (e: any) {
+          console.error("Save Error:", e);
+          alert("Error saving tip: " + (e.message || "Unknown Error. Check permissions."));
+      } finally {
+          setIsSaving(false);
       }
   };
 
@@ -294,7 +299,6 @@ export const App: React.FC = () => {
       if (result.status !== 'UNKNOWN' && result.status !== 'ERROR') {
           const confirmMsg = `AI Verification Result:\nStatus: ${result.status}\nScore: ${result.score}\nReason: ${result.reason}\n\nUpdate this tip?`;
           if (window.confirm(confirmMsg)) {
-              // @ts-ignore
               await dbService.settleTip(tip.id, result.status as TipStatus, result.score);
               if (user) fetchData(user);
           }
@@ -307,13 +311,16 @@ export const App: React.FC = () => {
       setNewTip(tip);
       setEditingTipId(tip.id);
       setAdminTab('tips');
+      // Scroll to top of admin section
+      const adminPanel = document.getElementById('admin-panel');
+      if (adminPanel) adminPanel.scrollIntoView({ behavior: 'smooth' });
   }
 
   // --- Image Upload Helper ---
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, callback: (base64: string) => void) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Check file size (e.g., limit to 2MB for mock db strings)
+      // Check file size (e.g., limit to 2MB for base64 storage in text column)
       if (file.size > 2 * 1024 * 1024) {
           alert("File size too large! Please upload under 2MB.");
           return;
@@ -328,11 +335,32 @@ export const App: React.FC = () => {
 
   const handleSaveNews = async () => {
       if (!newNews.title || !newNews.body) return;
-      // @ts-ignore
-      await dbService.addNews(newNews);
-      setNewNews({ title: '', category: 'Football', source: '', body: '', imageUrl: '', videoUrl: '', matchDate: '' });
-      if (user) fetchData(user);
-      alert("News Posted!");
+      setIsSaving(true);
+      try {
+        if (editingNewsId) {
+             const updatedNews = { ...newNews, id: editingNewsId } as NewsPost;
+             await dbService.updateNews(updatedNews);
+             setEditingNewsId(null);
+        } else {
+             await dbService.addNews(newNews as Omit<NewsPost, 'id' | 'createdAt'>);
+        }
+        
+        setNewNews({ title: '', category: 'Football', source: '', body: '', imageUrl: '', videoUrl: '', matchDate: '' });
+        if (user) await fetchData(user);
+        alert(editingNewsId ? "News Updated!" : "News Posted!");
+      } catch (e: any) {
+          alert("Error: " + e.message);
+      } finally {
+          setIsSaving(false);
+      }
+  };
+
+  const handleEditNews = (post: NewsPost) => {
+      setNewNews(post);
+      setEditingNewsId(post.id);
+      // Scroll to form
+      const adminPanel = document.getElementById('admin-panel');
+      if (adminPanel) adminPanel.scrollIntoView({ behavior: 'smooth' });
   };
 
   const handleDeleteNews = async (id: string) => {
@@ -348,10 +376,31 @@ export const App: React.FC = () => {
           alert("Image and Title are required.");
           return;
       }
-      await dbService.addSlide(newSlide);
-      setNewSlide({ title: '', subtitle: '', image: '' });
-      if (user) fetchData(user);
-      alert("Slide Added!");
+      setIsSaving(true);
+      try {
+        if (editingSlideId) {
+             const updatedSlide = { ...newSlide, id: editingSlideId } as Slide;
+             await dbService.updateSlide(updatedSlide);
+             setEditingSlideId(null);
+        } else {
+             await dbService.addSlide(newSlide);
+        }
+        
+        setNewSlide({ title: '', subtitle: '', image: '' });
+        if (user) await fetchData(user);
+        alert(editingSlideId ? "Slide Updated!" : "Slide Added!");
+      } catch (e: any) {
+          alert("Error: " + e.message);
+      } finally {
+          setIsSaving(false);
+      }
+  };
+
+  const handleEditSlide = (slide: Slide) => {
+      setNewSlide(slide);
+      setEditingSlideId(slide.id);
+      const adminPanel = document.getElementById('admin-panel');
+      if (adminPanel) adminPanel.scrollIntoView({ behavior: 'smooth' });
   };
 
   const handleDeleteSlide = async (id: string) => {
@@ -372,10 +421,17 @@ export const App: React.FC = () => {
 
   const handleSendMessage = async () => {
       if (!contactMessage.trim() || !user) return;
-      await dbService.sendMessage(user.uid, user.displayName || 'User', contactMessage);
-      setContactMessage('');
-      fetchData(user);
-      alert("Message sent!");
+      setIsSaving(true);
+      try {
+        await dbService.sendMessage(user.uid, user.displayName || 'User', contactMessage);
+        setContactMessage('');
+        await fetchData(user);
+        // Do not alert, just clear for chat experience
+      } catch (e: any) {
+          alert("Failed to send: " + e.message);
+      } finally {
+          setIsSaving(false);
+      }
   };
 
   const handleReplyMessage = async (msgId: string) => {
@@ -384,6 +440,13 @@ export const App: React.FC = () => {
       await dbService.replyToMessage(msgId, text);
       setReplyText({ ...replyText, [msgId]: '' });
       if (user) fetchData(user);
+  };
+  
+  const handleDeleteMessage = async (msgId: string) => {
+      if (window.confirm("Delete this message?")) {
+          await dbService.deleteMessage(msgId);
+          fetchData(user);
+      }
   };
 
   // --- RENDER HELPERS ---
@@ -603,7 +666,10 @@ export const App: React.FC = () => {
                               <h3 className="text-xl font-bold text-white mb-3 leading-tight group-hover:text-brazil-green transition-colors">{post.title}</h3>
                               <p className="text-slate-400 text-sm leading-relaxed mb-4">{post.body}</p>
                               {user?.role === UserRole.ADMIN && (
-                                  <button onClick={() => handleDeleteNews(post.id)} type="button" className="text-red-500 text-xs font-bold hover:underline">DELETE POST</button>
+                                  <div className="flex gap-4">
+                                      <button onClick={() => { setAdminTab('news'); handleEditNews(post); }} type="button" className="text-blue-400 text-xs font-bold hover:underline">EDIT POST</button>
+                                      <button onClick={() => handleDeleteNews(post.id)} type="button" className="text-red-500 text-xs font-bold hover:underline">DELETE POST</button>
+                                  </div>
                               )}
                           </div>
                       </div>
@@ -632,7 +698,10 @@ export const App: React.FC = () => {
                                       <p className="font-bold text-white">{msg.userName}</p>
                                       <p className="text-xs text-slate-500">ID: {msg.userId}</p>
                                   </div>
-                                  <span className="text-xs text-slate-500">{new Date(msg.createdAt).toLocaleDateString()}</span>
+                                  <div className="flex items-center gap-2">
+                                      <span className="text-xs text-slate-500">{new Date(msg.createdAt).toLocaleDateString()}</span>
+                                      <button onClick={() => handleDeleteMessage(msg.id)} className="text-red-500 hover:text-red-400 p-1"><Trash2 size={14}/></button>
+                                  </div>
                               </div>
                               <p className="text-slate-300 text-sm mb-4 bg-black/20 p-3 rounded-lg">{msg.content}</p>
                               
@@ -694,9 +763,10 @@ export const App: React.FC = () => {
                                 placeholder="Type your message..."
                                 value={contactMessage}
                                 onChange={(e) => setContactMessage(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
                             />
-                            <button onClick={handleSendMessage} className="bg-brazil-green text-white p-3 rounded-xl hover:bg-green-600 transition-colors">
-                                <Send size={20}/>
+                            <button onClick={handleSendMessage} disabled={isSaving} className="bg-brazil-green text-white p-3 rounded-xl hover:bg-green-600 transition-colors disabled:opacity-50">
+                                {isSaving ? <RefreshCw size={20} className="animate-spin" /> : <Send size={20}/>}
                             </button>
                         </div>
                     </div>
@@ -707,7 +777,7 @@ export const App: React.FC = () => {
 
       {/* ADMIN TAB */}
       {activeTab === 'admin' && user?.role === UserRole.ADMIN && (
-          <div className="bg-slate-900 rounded-3xl p-6 border border-slate-800 min-h-[80vh]">
+          <div className="bg-slate-900 rounded-3xl p-6 border border-slate-800 min-h-[80vh]" id="admin-panel">
               <div className="flex items-center gap-4 mb-8 overflow-x-auto pb-2">
                   {[
                     {id: 'overview', icon: LayoutDashboard}, 
@@ -861,8 +931,8 @@ export const App: React.FC = () => {
                                   {editingTipId && (
                                       <button onClick={() => {setEditingTipId(null); setNewTip({category: TipCategory.SINGLE, teams: '', league: LEAGUES[0], prediction: '', odds: 1.50, confidence: 'Medium', sport: 'Football', bettingCode: '', legs: [], kickoffTime: '', analysis: ''});}} className="flex-1 bg-slate-700 text-white py-3 rounded-xl font-bold">Cancel</button>
                                   )}
-                                  <button onClick={handleSaveTip} className="flex-1 bg-brazil-green hover:bg-green-600 text-white py-3 rounded-xl font-bold shadow-lg shadow-green-900/20 transition-all">
-                                      {editingTipId ? 'Update Tip' : 'Post Tip'}
+                                  <button onClick={handleSaveTip} disabled={isSaving} className="flex-1 bg-brazil-green hover:bg-green-600 text-white py-3 rounded-xl font-bold shadow-lg shadow-green-900/20 transition-all flex items-center justify-center">
+                                      {isSaving ? <RefreshCw size={20} className="animate-spin"/> : (editingTipId ? 'Update Tip' : 'Post Tip')}
                                   </button>
                               </div>
                           </div>
@@ -890,6 +960,7 @@ export const App: React.FC = () => {
               {/* Admin: News */}
               {adminTab === 'news' && (
                   <div className="space-y-4 max-w-2xl">
+                      <h3 className="font-bold text-white flex items-center mb-4"><Newspaper size={16} className="mr-2"/> {editingNewsId ? 'Edit News' : 'Post News'}</h3>
                       <div className="bg-slate-800 p-4 rounded-xl border border-slate-700">
                           <label className="block text-xs font-bold text-slate-400 uppercase mb-2">News Image Upload</label>
                           <div className="flex items-center gap-4">
@@ -934,7 +1005,30 @@ export const App: React.FC = () => {
                             onChange={e => setNewNews({...newNews, source: e.target.value})}
                         />
                       </div>
-                      <button onClick={handleSaveNews} className="w-full bg-brazil-green text-white py-3 rounded-xl font-bold">Publish News</button>
+                      
+                      <div className="flex gap-2">
+                        {editingNewsId && (
+                            <button onClick={() => { setEditingNewsId(null); setNewNews({ title: '', category: 'Football', source: '', body: '', imageUrl: '', videoUrl: '', matchDate: '' }); }} className="flex-1 bg-slate-700 text-white py-3 rounded-xl font-bold">Cancel</button>
+                        )}
+                        <button onClick={handleSaveNews} disabled={isSaving} className="flex-1 bg-brazil-green text-white py-3 rounded-xl font-bold flex items-center justify-center">
+                            {isSaving ? <RefreshCw size={20} className="animate-spin"/> : (editingNewsId ? 'Update News' : 'Publish News')}
+                        </button>
+                      </div>
+
+                      <div className="mt-8 border-t border-slate-700 pt-6">
+                           <h3 className="text-slate-400 text-xs font-bold uppercase mb-4">Existing News</h3>
+                           <div className="space-y-3">
+                               {news.map(post => (
+                                   <div key={post.id} className="bg-slate-900 p-3 rounded-lg border border-slate-800 flex justify-between items-center">
+                                       <span className="text-white text-sm truncate w-2/3">{post.title}</span>
+                                       <div className="flex gap-2">
+                                           <button onClick={() => handleEditNews(post)} className="text-blue-400 p-2 hover:bg-blue-900/20 rounded"><Edit3 size={14}/></button>
+                                           <button onClick={() => handleDeleteNews(post.id)} className="text-red-500 p-2 hover:bg-red-900/20 rounded"><Trash2 size={14}/></button>
+                                       </div>
+                                   </div>
+                               ))}
+                           </div>
+                      </div>
                   </div>
               )}
 
@@ -945,7 +1039,7 @@ export const App: React.FC = () => {
                            {/* Add Slide Form */}
                            <div className="md:col-span-1 space-y-4">
                                <div className="bg-slate-800 p-4 rounded-xl border border-slate-700">
-                                  <h3 className="font-bold text-white mb-4 flex items-center"><Plus size={16} className="mr-2"/> Add New Slide</h3>
+                                  <h3 className="font-bold text-white mb-4 flex items-center"><Plus size={16} className="mr-2"/> {editingSlideId ? 'Edit Slide' : 'Add New Slide'}</h3>
                                   
                                   {/* Image Upload */}
                                   <div className="mb-4">
@@ -975,7 +1069,15 @@ export const App: React.FC = () => {
                                     value={newSlide.subtitle}
                                     onChange={e => setNewSlide({...newSlide, subtitle: e.target.value})}
                                   />
-                                  <button onClick={handleSaveSlide} className="w-full bg-brazil-green text-white py-3 rounded-xl font-bold">Add Slide</button>
+                                  
+                                  <div className="flex gap-2">
+                                    {editingSlideId && (
+                                        <button onClick={() => { setEditingSlideId(null); setNewSlide({ title: '', subtitle: '', image: '' }); }} className="flex-1 bg-slate-700 text-white py-3 rounded-xl font-bold">Cancel</button>
+                                    )}
+                                    <button onClick={handleSaveSlide} disabled={isSaving} className="flex-1 bg-brazil-green text-white py-3 rounded-xl font-bold flex items-center justify-center">
+                                      {isSaving ? <RefreshCw size={20} className="animate-spin"/> : (editingSlideId ? 'Update' : 'Add')}
+                                    </button>
+                                  </div>
                                </div>
                            </div>
 
@@ -989,13 +1091,22 @@ export const App: React.FC = () => {
                                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-4">
                                                <h4 className="text-white font-bold">{slide.title}</h4>
                                                <p className="text-xs text-slate-300">{slide.subtitle}</p>
-                                               <button 
-                                                  onClick={() => handleDeleteSlide(slide.id)}
-                                                  type="button"
-                                                  className="absolute top-2 right-2 p-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-                                               >
-                                                   <Trash2 size={16} />
-                                               </button>
+                                               <div className="absolute top-2 right-2 flex gap-2">
+                                                    <button 
+                                                        onClick={() => handleEditSlide(slide)}
+                                                        type="button"
+                                                        className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                                                    >
+                                                        <Edit3 size={16} />
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => handleDeleteSlide(slide.id)}
+                                                        type="button"
+                                                        className="p-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                                                    >
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                               </div>
                                            </div>
                                        </div>
                                    ))}
