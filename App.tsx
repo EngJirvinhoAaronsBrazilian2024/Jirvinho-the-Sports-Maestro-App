@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { User, UserRole, Tip, NewsPost, MaestroStats, TipStatus, TipCategory, TipLeg, Message, Slide } from './types';
 import { dbService } from './services/db';
@@ -156,6 +155,8 @@ export const App: React.FC = () => {
         
         if (u) {
              await fetchData(u);
+             // Ensure loading is turned off once we have a user
+             setLoading(false);
         } else {
              setTips([]); setNews([]); setSlides([]); setStats({winRate:0, totalTips:0, wonTips:0, streak:[]});
         }
@@ -188,16 +189,35 @@ export const App: React.FC = () => {
     try {
       if (authMode === 'login') {
         await dbService.login(email, password);
+        // Note: We keep loading = true here because onAuthStateChange 
+        // will fire momentarily and handle the redirect/UI update.
+        // This prevents the form from flashing before the layout appears.
       } else if (authMode === 'signup') {
-        await dbService.signUp(email, password, displayName);
+        try {
+          await dbService.signUp(email, password, displayName);
+          // Check if session was created (Auto Confirm ON vs OFF)
+          const u = await dbService.getCurrentUser();
+          if (!u) {
+             setAuthError('Account created! Please log in.');
+             setAuthMode('login');
+             setLoading(false);
+          }
+        } catch (signUpError: any) {
+           // If user already exists, try logging in automatically
+           if (signUpError.message && (signUpError.message.toLowerCase().includes('already registered') || signUpError.message.toLowerCase().includes('unique constraint'))) {
+              await dbService.login(email, password);
+           } else {
+              throw signUpError;
+           }
+        }
       } else {
         await dbService.resetPassword(email);
         alert('Password reset link sent!');
         setAuthMode('login');
+        setLoading(false);
       }
     } catch (err: any) {
       setAuthError(err.message || "Authentication failed");
-    } finally {
       setLoading(false);
     }
   };
