@@ -9,7 +9,7 @@ import { ImageSlider } from './components/ImageSlider';
 import { LiveScoreBoard } from './components/LiveScoreBoard';
 import { 
   PlayCircle, Lock, Mail, ChevronRight, Plus, Trash2, Save, FileText, Check, X, 
-  RefreshCw, Smartphone, TrendingUp, Award, Target, UserPlus, XCircle, Trophy, 
+  Smartphone, TrendingUp, Award, Target, UserPlus, XCircle, Trophy, 
   Flame, Eye, EyeOff, MessageSquare, Send, Globe, Newspaper, Calendar, Database, 
   Wand2, Upload, ExternalLink, Users, Shield, ShieldAlert, Edit3, ArrowLeft, 
   Activity, LayoutDashboard, Image as ImageIcon, UploadCloud
@@ -441,25 +441,48 @@ export const App: React.FC = () => {
 
   const handleSendMessage = async () => {
       if (!contactMessage.trim() || !user) return;
-      setIsSaving(true);
+      
+      const msgContent = contactMessage;
+      setContactMessage(''); // Clear input immediately
+      
+      // Optimistic update
+      const tempId = Date.now().toString();
+      const optimisticMsg: Message = {
+          id: tempId,
+          userId: user.uid,
+          userName: user.displayName || 'User',
+          content: msgContent,
+          createdAt: Date.now(),
+          isRead: false
+      };
+      
+      setMessages(prev => [optimisticMsg, ...prev]);
+
       try {
-        await dbService.sendMessage(user.uid, user.displayName || 'User', contactMessage);
-        setContactMessage('');
+        await dbService.sendMessage(user.uid, user.displayName || 'User', msgContent);
+        // Silent background sync
         await fetchData(user);
-        // Do not alert, just clear for chat experience
       } catch (e: any) {
           alert("Failed to send: " + e.message);
-      } finally {
-          setIsSaving(false);
+          setMessages(prev => prev.filter(m => m.id !== tempId));
       }
   };
 
   const handleReplyMessage = async (msgId: string) => {
       const text = replyText[msgId];
       if (!text) return;
-      await dbService.replyToMessage(msgId, text);
-      setReplyText({ ...replyText, [msgId]: '' });
-      if (user) fetchData(user);
+      
+      // Optimistic UI
+      setReplyText(prev => ({ ...prev, [msgId]: '' }));
+      setMessages(prev => prev.map(m => m.id === msgId ? { ...m, reply: text, isRead: true } : m));
+
+      try {
+          await dbService.replyToMessage(msgId, text);
+          if (user) fetchData(user);
+      } catch (e: any) {
+          console.error(e);
+          if (user) fetchData(user); // Revert/Refresh on error
+      }
   };
   
   const handleDeleteMessage = async (msgId: string) => {
@@ -558,8 +581,7 @@ export const App: React.FC = () => {
                 disabled={loading}
                 className="w-full bg-gradient-to-r from-brazil-green to-green-600 hover:from-green-500 hover:to-green-600 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-green-900/30 transition-all active:scale-[0.98] flex items-center justify-center"
              >
-                {loading ? <RefreshCw className="animate-spin" /> : 
-                 authMode === 'login' ? 'Sign In' : 
+                {authMode === 'login' ? 'Sign In' : 
                  authMode === 'signup' ? 'Create Account' : 'Send Reset Link'}
              </button>
           </form>
@@ -785,8 +807,8 @@ export const App: React.FC = () => {
                                 onChange={(e) => setContactMessage(e.target.value)}
                                 onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
                             />
-                            <button onClick={handleSendMessage} disabled={isSaving} className="bg-brazil-green text-white p-3 rounded-xl hover:bg-green-600 transition-colors disabled:opacity-50">
-                                {isSaving ? <RefreshCw size={20} className="animate-spin" /> : <Send size={20}/>}
+                            <button onClick={handleSendMessage} className="bg-brazil-green text-white p-3 rounded-xl hover:bg-green-600 transition-colors">
+                                <Send size={20}/>
                             </button>
                         </div>
                     </div>
@@ -931,7 +953,7 @@ export const App: React.FC = () => {
                                     className="absolute bottom-3 right-3 bg-brazil-blue/20 hover:bg-brazil-blue text-blue-400 hover:text-white p-2 rounded-lg transition-all"
                                     title="Generate AI Analysis"
                                   >
-                                      {isGeneratingAI ? <RefreshCw size={14} className="animate-spin"/> : <Wand2 size={14}/>}
+                                      <Wand2 size={14}/>
                                   </button>
                               </div>
                               <input 
@@ -952,7 +974,7 @@ export const App: React.FC = () => {
                                       <button onClick={() => {setEditingTipId(null); setNewTip({category: TipCategory.SINGLE, teams: '', league: LEAGUES[0], prediction: '', odds: 1.50, confidence: 'Medium', sport: 'Football', bettingCode: '', legs: [], kickoffTime: '', analysis: ''});}} className="flex-1 bg-slate-700 text-white py-3 rounded-xl font-bold">Cancel</button>
                                   )}
                                   <button onClick={handleSaveTip} disabled={isSaving} className="flex-1 bg-brazil-green hover:bg-green-600 text-white py-3 rounded-xl font-bold shadow-lg shadow-green-900/20 transition-all flex items-center justify-center">
-                                      {isSaving ? <RefreshCw size={20} className="animate-spin"/> : (editingTipId ? 'Update Tip' : 'Post Tip')}
+                                      {editingTipId ? 'Update Tip' : 'Post Tip'}
                                   </button>
                               </div>
                           </div>
@@ -1031,7 +1053,7 @@ export const App: React.FC = () => {
                             <button onClick={() => { setEditingNewsId(null); setNewNews({ title: '', category: 'Football', source: '', body: '', imageUrl: '', videoUrl: '', matchDate: '' }); }} className="flex-1 bg-slate-700 text-white py-3 rounded-xl font-bold">Cancel</button>
                         )}
                         <button onClick={handleSaveNews} disabled={isSaving} className="flex-1 bg-brazil-green text-white py-3 rounded-xl font-bold flex items-center justify-center">
-                            {isSaving ? <RefreshCw size={20} className="animate-spin"/> : (editingNewsId ? 'Update News' : 'Publish News')}
+                            {editingNewsId ? 'Update News' : 'Publish News'}
                         </button>
                       </div>
 
@@ -1095,7 +1117,7 @@ export const App: React.FC = () => {
                                         <button onClick={() => { setEditingSlideId(null); setNewSlide({ title: '', subtitle: '', image: '' }); }} className="flex-1 bg-slate-700 text-white py-3 rounded-xl font-bold">Cancel</button>
                                     )}
                                     <button onClick={handleSaveSlide} disabled={isSaving} className="flex-1 bg-brazil-green text-white py-3 rounded-xl font-bold flex items-center justify-center">
-                                      {isSaving ? <RefreshCw size={20} className="animate-spin"/> : (editingSlideId ? 'Update' : 'Add')}
+                                      {editingSlideId ? 'Update' : 'Add'}
                                     </button>
                                   </div>
                                </div>
