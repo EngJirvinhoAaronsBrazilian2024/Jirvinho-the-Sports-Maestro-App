@@ -476,9 +476,15 @@ export const App: React.FC = () => {
       setMessages(prev => [...prev, optimisticMsg]); // Append to end
 
       try {
-        await dbService.sendMessage(user.uid, user.displayName || 'User', msgContent);
-        // Instant sync
-        await fetchData(user);
+        // Send and get the real message with real ID
+        const savedMsg = await dbService.sendMessage(user.uid, user.displayName || 'User', msgContent);
+        
+        // Update state with real ID to ensure delete works
+        if (savedMsg) {
+            setMessages(prev => prev.map(m => m.id === tempId ? savedMsg : m));
+        } else {
+            await fetchData(user);
+        }
       } catch (e: any) {
           console.error(e);
           setMessages(prev => prev.filter(m => m.id !== tempId));
@@ -506,8 +512,16 @@ export const App: React.FC = () => {
       if (window.confirm("Delete this message?")) {
           // Optimistic remove
           setMessages(prev => prev.filter(m => m.id !== msgId));
-          await dbService.deleteMessage(msgId);
-          fetchData(user);
+          try {
+              await dbService.deleteMessage(msgId);
+              // We don't necessarily need to fetch if delete succeeds, as optimistic update handled it
+              // But fetching ensures sync
+              fetchData(user); 
+          } catch(e) {
+              console.error("Failed to delete", e);
+              alert("Failed to delete message. It might have been already deleted.");
+              fetchData(user);
+          }
       }
   };
 
@@ -796,7 +810,7 @@ export const App: React.FC = () => {
 
         {/* --- CONTACT / CHAT TAB --- */}
         {activeTab === 'contact' && (
-            <div className="animate-in fade-in slide-in-from-bottom-8 duration-700 h-[calc(100vh-160px)] flex flex-col">
+            <div className="animate-in fade-in slide-in-from-bottom-8 duration-700 h-[85vh] md:h-[calc(100vh-140px)] flex flex-col pb-20 md:pb-0">
                  <div className="flex-1 glass-panel rounded-[2.5rem] overflow-hidden flex flex-col relative shadow-2xl">
                      {/* Chat Header */}
                      <div className="p-6 bg-slate-900/50 border-b border-white/5 flex items-center justify-between backdrop-blur-md">
@@ -827,7 +841,7 @@ export const App: React.FC = () => {
                                          {msg.userId === user.uid && (
                                              <button 
                                                 onClick={() => handleDeleteMessage(msg.id)}
-                                                className="absolute -left-8 top-1/2 -translate-y-1/2 p-1.5 text-slate-500 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                className="absolute -left-10 top-1/2 -translate-y-1/2 p-2 text-slate-500 hover:text-red-500 bg-slate-900/50 rounded-full transition-all opacity-60 hover:opacity-100"
                                                 title="Delete Message"
                                              >
                                                  <Trash2 size={14}/>

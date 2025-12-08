@@ -429,15 +429,27 @@ class DBService {
       }
   }
 
-  async sendMessage(userId: string, userName: string, content: string): Promise<void> {
-      const { error } = await supabase.from('messages').insert({
+  async sendMessage(userId: string, userName: string, content: string): Promise<Message | null> {
+      const { data, error } = await supabase.from('messages').insert({
           user_id: userId,
           user_name: userName,
           content,
           created_at: Date.now(),
           is_read: false
-      });
+      }).select().single();
+      
       if (error) throw error;
+      if (!data) return null;
+
+      return {
+          id: data.id,
+          userId: data.user_id,
+          userName: data.user_name,
+          content: data.content,
+          createdAt: Number(data.created_at),
+          isRead: data.is_read,
+          reply: data.reply
+      };
   }
 
   async replyToMessage(messageId: string, replyContent: string): Promise<void> {
@@ -455,4 +467,3 @@ class DBService {
 }
 
 export const dbService = new DBService();
-    
