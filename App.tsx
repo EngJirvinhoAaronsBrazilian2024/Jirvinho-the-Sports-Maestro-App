@@ -172,9 +172,10 @@ export const App: React.FC = () => {
   // --- Polling ---
   useEffect(() => {
       if (!user) return;
+      // Faster polling for quick message updates (2 seconds)
       const interval = setInterval(() => {
           fetchData(user);
-      }, 15000);
+      }, 2000);
       return () => clearInterval(interval);
   }, [user, fetchData]);
 
@@ -183,29 +184,43 @@ export const App: React.FC = () => {
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (loading) return;
+    // Do not block UI with loading check to make it feel faster
     setLoading(true);
     setAuthError('');
     try {
       if (authMode === 'login') {
         await dbService.login(email, password);
-        // Note: We keep loading = true here because onAuthStateChange 
-        // will fire momentarily and handle the redirect/UI update.
-        // This prevents the form from flashing before the layout appears.
       } else if (authMode === 'signup') {
         try {
           await dbService.signUp(email, password, displayName);
-          // Check if session was created (Auto Confirm ON vs OFF)
+          // Check if session was created
           const u = await dbService.getCurrentUser();
           if (!u) {
-             setAuthError('Account created! Please log in.');
-             setAuthMode('login');
-             setLoading(false);
+             // If signup was successful but no session, it might be auto-confirm off.
+             // However, to ensure smooth UX, try logging in immediately.
+             try {
+                await dbService.login(email, password);
+             } catch (loginErr) {
+                 setAuthError('Account created! Please check email for confirmation.');
+                 setAuthMode('login');
+                 setLoading(false);
+             }
           }
         } catch (signUpError: any) {
-           // If user already exists, try logging in automatically
-           if (signUpError.message && (signUpError.message.toLowerCase().includes('already registered') || signUpError.message.toLowerCase().includes('unique constraint'))) {
-              await dbService.login(email, password);
+           const errStr = (signUpError.message || '').toLowerCase();
+           // If user already exists, try logging in automatically to "confirm" them into the app
+           if (errStr.includes('already registered') || errStr.includes('unique constraint') || errStr.includes('already exists')) {
+              try {
+                  await dbService.login(email, password);
+              } catch (loginErr: any) {
+                  // If login fails after signup collision, show specific error
+                  if (loginErr.message?.includes('Invalid login credentials')) {
+                      setAuthError('Account exists. Incorrect password.');
+                  } else {
+                      setAuthError(loginErr.message || "Login failed.");
+                  }
+                  setLoading(false);
+              }
            } else {
               throw signUpError;
            }
@@ -463,7 +478,8 @@ export const App: React.FC = () => {
         // Silent background sync
         await fetchData(user);
       } catch (e: any) {
-          alert("Failed to send: " + e.message);
+          // alert("Failed to send: " + e.message); // Removed alert for speed feeling
+          console.error(e);
           setMessages(prev => prev.filter(m => m.id !== tempId));
       }
   };
@@ -578,7 +594,7 @@ export const App: React.FC = () => {
 
              <button 
                 type="submit" 
-                disabled={loading}
+                // Removed disabled={loading} to improve perceived speed
                 className="w-full bg-gradient-to-r from-brazil-green to-green-600 hover:from-green-500 hover:to-green-600 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-green-900/30 transition-all active:scale-[0.98] flex items-center justify-center"
              >
                 {authMode === 'login' ? 'Sign In' : 
