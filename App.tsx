@@ -109,8 +109,10 @@ export const App: React.FC = () => {
   // User Contact State
   const [contactMessage, setContactMessage] = useState('');
   
-  // Chat Scroll Ref
+  // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  // Track IDs of messages currently being replied to, to prevent polling overwrites
+  const pendingActionsRef = useRef<Set<string>>(new Set());
 
   // --- Optimized Fetch Data ---
   const fetchData = useCallback(async (currentUser: User | null) => {
@@ -128,10 +130,36 @@ export const App: React.FC = () => {
         setSlides(slidesData);
 
         if (currentUser) {
-            const msgs = currentUser.role === UserRole.ADMIN 
+            const serverMsgs = currentUser.role === UserRole.ADMIN 
                 ? await dbService.getMessages() 
                 : await dbService.getUserMessages(currentUser.uid);
-            setMessages(msgs);
+            
+            // SMART MERGE: 
+            // We must merge server data with local optimistic state to prevent flickering.
+            // 1. New server data takes precedence by default.
+            // 2. EXCEPT if we have a local optimistic update (tracked in pendingActionsRef)
+            // 3. AND we keep local temporary messages (ids that don't exist in server list)
+            
+            setMessages(prev => {
+                const serverIds = new Set(serverMsgs.map(m => m.id));
+                
+                // Keep temporary messages that haven't been synced yet
+                // (Assumes temp IDs are timestamps/numeric-strings different from UUIDs or just not in server list yet)
+                const pendingTempMessages = prev.filter(m => !serverIds.has(m.id));
+                
+                // Map server messages, but preserve local 'reply' if we are currently editing/sending it
+                const mergedServerMessages = serverMsgs.map(serverMsg => {
+                    if (pendingActionsRef.current.has(serverMsg.id)) {
+                        const localMsg = prev.find(p => p.id === serverMsg.id);
+                        if (localMsg) {
+                            return { ...serverMsg, reply: localMsg.reply }; // Keep optimistic reply
+                        }
+                    }
+                    return serverMsg;
+                });
+
+                return [...mergedServerMessages, ...pendingTempMessages];
+            });
 
             if (currentUser.role === UserRole.ADMIN) {
                 const uList = await dbService.getAllUsers();
@@ -186,7 +214,7 @@ export const App: React.FC = () => {
               messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
           }, 100);
       }
-  }, [messages, activeTab, adminTab]);
+  }, [messages.length, activeTab, adminTab]); // Scroll when messages count changes
 
 
   // --- Handlers ---
@@ -498,16 +526,25 @@ export const App: React.FC = () => {
       const text = replyText[msgId];
       if (!text) return;
       
+      // Mark as pending to protect from polling overwrite
+      pendingActionsRef.current.add(msgId);
+
       // Optimistic UI
       setReplyText(prev => ({ ...prev, [msgId]: '' }));
       setMessages(prev => prev.map(m => m.id === msgId ? { ...m, reply: text, isRead: true } : m));
 
       try {
           await dbService.replyToMessage(msgId, text);
+          // Wait a beat before allowing polling to takeover, or just rely on smart merge
           if (user) fetchData(user);
       } catch (e: any) {
-          console.error(e);
-          if (user) fetchData(user); // Revert/Refresh on error
+          console.error("Reply failed", e);
+          // Revert optimistic update if failed
+          setMessages(prev => prev.map(m => m.id === msgId ? { ...m, reply: undefined, isRead: false } : m));
+          setReplyText(prev => ({ ...prev, [msgId]: text })); // Restore text
+      } finally {
+          // Release lock
+          pendingActionsRef.current.delete(msgId);
       }
   };
   
@@ -868,17 +905,18 @@ export const App: React.FC = () => {
 
                                      {/* Admin Reply Input */}
                                      {user.role === UserRole.ADMIN && !msg.reply && msg.userId !== user.uid && (
-                                         <div className="mt-3 flex w-full max-w-[85%] gap-2">
+                                         <div className="mt-3 flex w-full max-w-[85%] gap-2 animate-in fade-in slide-in-from-top-1">
                                              <input 
                                                 type="text" 
                                                 placeholder="Write a reply..."
-                                                className="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-4 py-2 text-xs text-white focus:border-brazil-green focus:outline-none"
+                                                className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-xs text-white focus:border-brazil-green focus:outline-none focus:ring-1 focus:ring-brazil-green/50 transition-all"
                                                 value={replyText[msg.id] || ''}
                                                 onChange={(e) => setReplyText({...replyText, [msg.id]: e.target.value})}
                                              />
                                              <button 
                                                 onClick={() => handleReplyMessage(msg.id)}
-                                                className="bg-slate-800 hover:bg-brazil-green text-white p-2 rounded-xl transition-colors shadow-lg"
+                                                disabled={!replyText[msg.id]}
+                                                className="bg-slate-800 hover:bg-brazil-green disabled:opacity-50 disabled:hover:bg-slate-800 text-white p-3 rounded-xl transition-all shadow-lg active:scale-95"
                                              >
                                                  <Send size={16}/>
                                              </button>
