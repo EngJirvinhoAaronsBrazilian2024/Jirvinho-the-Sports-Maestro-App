@@ -373,7 +373,8 @@ class DBService {
 
   async getMessages(): Promise<Message[]> {
       try {
-        const { data, error } = await supabase.from('messages').select('*').order('created_at', { ascending: false });
+        // Changed to ascending: true so messages flow naturally (oldest top, newest bottom)
+        const { data, error } = await supabase.from('messages').select('*').order('created_at', { ascending: true });
         if (error) return [];
         if (!data) return [];
         
@@ -391,11 +392,12 @@ class DBService {
 
   async getUserMessages(userId: string): Promise<Message[]> {
       try {
+        // Changed to ascending: true so messages flow naturally (oldest top, newest bottom)
         const { data, error } = await supabase
             .from('messages')
             .select('*')
             .eq('user_id', userId)
-            .order('created_at', { ascending: false });
+            .order('created_at', { ascending: true });
             
         if (error) return [];
         if (!data) return [];

@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { User, UserRole, Tip, NewsPost, MaestroStats, TipStatus, TipCategory, TipLeg, Message, Slide } from './types';
 import { dbService } from './services/db';
 import { generateMatchAnalysis, checkBetResult } from './services/geminiService';
@@ -108,6 +108,9 @@ export const App: React.FC = () => {
 
   // User Contact State
   const [contactMessage, setContactMessage] = useState('');
+  
+  // Chat Scroll Ref
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // --- Optimized Fetch Data ---
   const fetchData = useCallback(async (currentUser: User | null) => {
@@ -174,6 +177,13 @@ export const App: React.FC = () => {
       }, 800);
       return () => clearInterval(interval);
   }, [user, fetchData]);
+
+  // --- Auto Scroll for Chat ---
+  useEffect(() => {
+      if (activeTab === 'contact' || (activeTab === 'admin' && adminTab === 'messages')) {
+          messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }
+  }, [messages, activeTab, adminTab]);
 
 
   // --- Handlers ---
@@ -463,7 +473,7 @@ export const App: React.FC = () => {
           isRead: false
       };
       
-      setMessages(prev => [optimisticMsg, ...prev]);
+      setMessages(prev => [...prev, optimisticMsg]); // Append to end
 
       try {
         await dbService.sendMessage(user.uid, user.displayName || 'User', msgContent);
@@ -494,6 +504,8 @@ export const App: React.FC = () => {
   
   const handleDeleteMessage = async (msgId: string) => {
       if (window.confirm("Delete this message?")) {
+          // Optimistic remove
+          setMessages(prev => prev.filter(m => m.id !== msgId));
           await dbService.deleteMessage(msgId);
           fetchData(user);
       }
@@ -804,12 +816,23 @@ export const App: React.FC = () => {
                          ) : (
                              messages.map(msg => (
                                  <div key={msg.id} className={`flex flex-col ${msg.userId === user.uid ? 'items-end' : 'items-start'}`}>
-                                     <div className={`max-w-[85%] rounded-3xl p-5 shadow-lg ${msg.userId === user.uid ? 'bg-gradient-to-br from-brazil-green/80 to-green-800 text-white rounded-tr-none' : 'bg-slate-800 border border-white/5 text-slate-200 rounded-tl-none'}`}>
+                                     <div className={`max-w-[85%] rounded-3xl p-5 shadow-lg group relative ${msg.userId === user.uid ? 'bg-gradient-to-br from-brazil-green/80 to-green-800 text-white rounded-tr-none' : 'bg-slate-800 border border-white/5 text-slate-200 rounded-tl-none'}`}>
                                          {user.role === UserRole.ADMIN && msg.userId !== user.uid && (
                                              <div className="text-[10px] text-brazil-yellow font-bold mb-2 uppercase tracking-wider">{msg.userName}</div>
                                          )}
                                          <p className="text-sm leading-relaxed">{msg.content}</p>
                                          <span className="text-[10px] opacity-50 mt-3 block text-right font-medium">{new Date(msg.createdAt).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
+                                         
+                                         {/* Delete Button for Owner */}
+                                         {msg.userId === user.uid && (
+                                             <button 
+                                                onClick={() => handleDeleteMessage(msg.id)}
+                                                className="absolute -left-8 top-1/2 -translate-y-1/2 p-1.5 text-slate-500 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                title="Delete Message"
+                                             >
+                                                 <Trash2 size={14}/>
+                                             </button>
+                                         )}
                                      </div>
                                      
                                      {/* Admin Reply Display */}
@@ -844,6 +867,7 @@ export const App: React.FC = () => {
                                  </div>
                              ))
                          )}
+                         <div ref={messagesEndRef} />
                      </div>
 
                      {/* Chat Input (User Only) */}
