@@ -13,7 +13,8 @@ import {
   Smartphone, TrendingUp, Award, Target, UserPlus, XCircle, Trophy, 
   Flame, Eye, EyeOff, MessageSquare, Send, Globe, Newspaper, Calendar, Database, 
   Wand2, Upload, ExternalLink, Users, Shield, ShieldAlert, Edit3, ArrowLeft, 
-  Activity, LayoutDashboard, Image as ImageIcon, UploadCloud
+  Activity, LayoutDashboard, Image as ImageIcon, UploadCloud, AlertTriangle, Sparkles,
+  List
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend } from 'recharts';
 
@@ -67,7 +68,6 @@ export const App: React.FC = () => {
   // Auth State
   const [isInitializing, setIsInitializing] = useState(true);
   const [user, setUser] = useState<User | null>(null);
-  // Removed loading state to eliminate spinners and improve perceived speed
   const [authMode, setAuthMode] = useState<'login' | 'signup' | 'forgot'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -144,27 +144,11 @@ export const App: React.FC = () => {
   useEffect(() => {
     let mounted = true;
 
-    // PERFORMANCE: Fallback timer to force UI to render if Auth check hangs.
-    // This ensures users on slow connections see the login form quickly (within 800ms)
-    // instead of staring at a blank screen/logo.
-    const initTimer = setTimeout(() => {
-        if (mounted && isInitializing) {
-            setIsInitializing(false);
-        }
-    }, 800);
-
     // Subscribe to auth changes
     const { data: authListener } = dbService.onAuthStateChange(async (u) => {
         if (!mounted) return;
         
-        // If auth responds, clear the fallback timer
-        clearTimeout(initTimer);
-
-        // Deep comparison to prevent loop if object reference changes but content is same
-        setUser(prev => {
-            if (JSON.stringify(prev) === JSON.stringify(u)) return prev;
-            return u;
-        });
+        setUser(u);
         
         // Removed await to prevent blocking the UI initialization. Data will populate when ready.
         if (u) {
@@ -177,7 +161,6 @@ export const App: React.FC = () => {
 
     return () => {
         mounted = false;
-        clearTimeout(initTimer);
         if (authListener?.subscription) authListener.subscription.unsubscribe();
     };
   }, [fetchData]); // Only depends on stable fetchData
@@ -521,700 +504,809 @@ export const App: React.FC = () => {
   if (isInitializing) {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center relative overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-green-900/20 via-slate-950 to-slate-950"></div>
-        <Trophy size={64} className="text-brazil-yellow animate-bounce mb-6 relative z-10" />
-        <h1 className="text-3xl font-black italic text-white tracking-tighter relative z-10">JIRVINHO</h1>
-        <p className="text-brazil-green font-bold tracking-widest text-sm relative z-10 animate-pulse">THE SPORTS MAESTRO</p>
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-green-900/30 via-slate-950 to-slate-950"></div>
+        <Trophy size={80} className="text-brazil-yellow animate-bounce mb-8 relative z-10 drop-shadow-[0_0_15px_rgba(255,223,0,0.5)]" />
+        <h1 className="text-4xl font-black italic text-white tracking-tighter relative z-10 animate-pulse">JIRVINHO</h1>
       </div>
     );
   }
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 relative">
+      <div className="min-h-screen flex items-center justify-center p-4 relative">
         <div className="absolute inset-0 overflow-hidden">
-            <div className="absolute -top-[20%] -right-[10%] w-[600px] h-[600px] bg-brazil-green/10 rounded-full blur-3xl"></div>
-            <div className="absolute -bottom-[10%] -left-[10%] w-[500px] h-[500px] bg-blue-900/10 rounded-full blur-3xl"></div>
+            <div className="absolute -top-[20%] -right-[10%] w-[600px] h-[600px] bg-brazil-green/20 rounded-full blur-[100px] animate-pulse"></div>
+            <div className="absolute -bottom-[10%] -left-[10%] w-[500px] h-[500px] bg-blue-900/20 rounded-full blur-[100px]"></div>
         </div>
-
-        <div className="w-full max-w-md bg-slate-900/80 backdrop-blur-xl p-8 rounded-3xl border border-white/10 shadow-2xl relative z-10">
-          <div className="text-center mb-8">
-             <div className="w-16 h-16 bg-gradient-to-br from-brazil-green to-blue-900 rounded-2xl mx-auto flex items-center justify-center shadow-lg shadow-green-500/20 mb-4 transform -rotate-3">
-                 <Trophy size={32} className="text-brazil-yellow" />
+        
+        <div className="w-full max-w-md bg-slate-900/60 backdrop-blur-2xl p-8 rounded-[2.5rem] border border-white/10 shadow-2xl relative z-10">
+          <div className="text-center mb-10">
+             <div className="w-20 h-20 bg-gradient-to-br from-brazil-green to-blue-900 rounded-3xl mx-auto flex items-center justify-center shadow-lg shadow-green-500/20 mb-6 transform -rotate-6 hover:rotate-0 transition-transform duration-500">
+                 <Trophy size={40} className="text-brazil-yellow" />
              </div>
-             <h2 className="text-3xl font-black text-white italic tracking-tighter">JIRVINHO</h2>
-             <p className="text-slate-400 text-sm font-medium mt-1">Join the elite sports analysis platform</p>
+             <h2 className="text-4xl font-black text-white italic tracking-tighter mb-2">JIRVINHO</h2>
+             <p className="text-slate-400 font-medium tracking-wide">Elite Sports Analysis</p>
           </div>
 
           {authError && (
-            <div className="bg-red-500/10 border border-red-500/20 text-red-500 text-sm p-3 rounded-xl mb-6 flex items-center">
-              <ShieldAlert size={16} className="mr-2"/> {authError}
+            <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-sm p-4 rounded-2xl mb-6 flex items-center justify-center font-bold">
+              <ShieldAlert size={18} className="mr-2"/> {authError}
             </div>
           )}
 
-          <form onSubmit={handleAuth} className="space-y-4">
-             <div className="space-y-4">
+          <form onSubmit={handleAuth} className="space-y-5">
+             <div className="space-y-5">
                 {authMode === 'signup' && (
                     <div className="relative group">
-                        <Smartphone className="absolute left-3 top-3 text-slate-500 group-focus-within:text-brazil-green transition-colors" size={18} />
+                        <Smartphone className="absolute left-4 top-3.5 text-slate-500 group-focus-within:text-brazil-green transition-colors" size={20} />
                         <input
                             type="text"
                             placeholder="Display Name"
-                            className="w-full bg-slate-950/50 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-white placeholder-slate-500 focus:outline-none focus:border-brazil-green focus:ring-1 focus:ring-brazil-green transition-all"
+                            className="w-full bg-slate-950/50 border border-white/10 rounded-2xl py-3.5 pl-12 pr-4 text-white placeholder-slate-500 focus:outline-none focus:border-brazil-green focus:ring-1 focus:ring-brazil-green transition-all"
                             value={displayName}
                             onChange={(e) => setDisplayName(e.target.value)}
                             required
                         />
                     </div>
                 )}
+                
                 <div className="relative group">
-                    <Mail className="absolute left-3 top-3 text-slate-500 group-focus-within:text-brazil-green transition-colors" size={18} />
+                    <Mail className="absolute left-4 top-3.5 text-slate-500 group-focus-within:text-brazil-green transition-colors" size={20} />
                     <input
                         type="email"
                         placeholder="Email Address"
-                        className="w-full bg-slate-950/50 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-white placeholder-slate-500 focus:outline-none focus:border-brazil-green focus:ring-1 focus:ring-brazil-green transition-all"
+                        className="w-full bg-slate-950/50 border border-white/10 rounded-2xl py-3.5 pl-12 pr-4 text-white placeholder-slate-500 focus:outline-none focus:border-brazil-green focus:ring-1 focus:ring-brazil-green transition-all"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         required
                     />
                 </div>
-                {authMode !== 'forgot' && (
-                    <div className="relative group">
-                        <Lock className="absolute left-3 top-3 text-slate-500 group-focus-within:text-brazil-green transition-colors" size={18} />
-                        <input
-                            type={showPassword ? "text" : "password"}
-                            placeholder="Password"
-                            className="w-full bg-slate-950/50 border border-white/10 rounded-xl py-3 pl-10 pr-10 text-white placeholder-slate-500 focus:outline-none focus:border-brazil-green focus:ring-1 focus:ring-brazil-green transition-all"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            required
-                        />
-                         <button 
-                            type="button" 
-                            onClick={() => setShowPassword(!showPassword)}
-                            className="absolute right-3 top-3 text-slate-500 hover:text-white"
-                        >
-                            {showPassword ? <EyeOff size={16}/> : <Eye size={16}/>}
-                        </button>
-                    </div>
-                )}
+
+                <div className="relative group">
+                    <Lock className="absolute left-4 top-3.5 text-slate-500 group-focus-within:text-brazil-green transition-colors" size={20} />
+                    <input
+                        type={showPassword ? "text" : "password"}
+                        placeholder="Password"
+                        className="w-full bg-slate-950/50 border border-white/10 rounded-2xl py-3.5 pl-12 pr-12 text-white placeholder-slate-500 focus:outline-none focus:border-brazil-green focus:ring-1 focus:ring-brazil-green transition-all"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        required
+                    />
+                    <button 
+                        type="button" 
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-4 top-3.5 text-slate-500 hover:text-white transition-colors"
+                    >
+                        {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                    </button>
+                </div>
+             </div>
+
+             <div className="flex justify-between items-center text-xs text-slate-400 pt-2 px-1">
+                 <button type="button" onClick={() => setAuthMode(authMode === 'login' ? 'signup' : 'login')} className="hover:text-brazil-green transition-colors font-bold uppercase tracking-wider">
+                     {authMode === 'login' ? 'Create Account' : 'Back to Login'}
+                 </button>
+                 {authMode === 'login' && (
+                     <button type="button" onClick={() => setAuthMode('forgot')} className="hover:text-white transition-colors">
+                         Forgot password?
+                     </button>
+                 )}
              </div>
 
              <button 
                 type="submit" 
-                // Removed all blocking/loading states
-                className="w-full bg-gradient-to-r from-brazil-green to-green-600 hover:from-green-500 hover:to-green-600 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-green-900/30 transition-all active:scale-[0.98] flex items-center justify-center"
+                className="w-full bg-gradient-to-r from-brazil-green to-green-600 hover:from-green-500 hover:to-green-400 text-white font-black uppercase tracking-widest py-4 rounded-2xl shadow-xl shadow-green-900/30 active:scale-[0.98] transition-all duration-300 mt-4"
              >
-                {authMode === 'login' ? 'Sign In' : 
-                 authMode === 'signup' ? 'Create Account' : 'Send Reset Link'}
+                {authMode === 'login' ? 'Enter Arena' : authMode === 'signup' ? 'Join Now' : 'Send Reset Link'}
              </button>
           </form>
-
-          <div className="mt-6 flex justify-between items-center text-sm">
-             {authMode === 'login' ? (
-                 <>
-                    <button onClick={() => setAuthMode('forgot')} className="text-slate-500 hover:text-white transition-colors">Forgot Password?</button>
-                    <button onClick={() => setAuthMode('signup')} className="text-brazil-yellow hover:text-yellow-300 font-bold transition-colors">Sign Up Free</button>
-                 </>
-             ) : (
-                 <button onClick={() => setAuthMode('login')} className="text-slate-500 hover:text-white w-full text-center transition-colors">Back to Login</button>
-             )}
-          </div>
         </div>
       </div>
     );
   }
 
-  // --- Main Content ---
-  
+  // --- MAIN APP UI ---
+
   return (
     <Layout user={user} onLogout={handleLogout} activeTab={activeTab} setActiveTab={setActiveTab}>
-      
-      {/* DASHBOARD TAB */}
-      {activeTab === 'dashboard' && (
-        <div className="space-y-6">
-           <ImageSlider slides={slides} />
-
-           {/* Tip Filters */}
-           <div className="flex space-x-2 overflow-x-auto pb-2 scrollbar-hide">
-               {Object.values(TipCategory).map(cat => (
-                   <button
-                      key={cat}
-                      onClick={() => setMobileTab(cat)}
-                      className={`whitespace-nowrap px-4 py-2 rounded-full text-sm font-bold transition-all border ${
-                          mobileTab === cat 
-                          ? 'bg-white text-slate-900 border-white' 
-                          : 'bg-slate-900/50 text-slate-400 border-slate-700 hover:border-slate-500'
-                      }`}
-                   >
-                       {cat}
-                   </button>
-               ))}
-           </div>
-
-           {/* Tips List */}
-           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-               {tips.filter(t => t.category === mobileTab).length > 0 ? (
-                   tips.filter(t => t.category === mobileTab).map(tip => (
-                       <TipCard 
-                          key={tip.id} 
-                          tip={tip} 
-                          isAdmin={user?.role === UserRole.ADMIN} 
-                          onVote={handleVote}
-                          onSettle={handleSettleTip}
-                          onDelete={handleDeleteTip}
-                          onVerify={handleVerifyResult}
-                          onEdit={handleEditTip}
-                        />
-                   ))
-               ) : (
-                   <div className="col-span-full py-20 text-center text-slate-500">
-                       <LayoutDashboard size={48} className="mx-auto mb-4 opacity-20"/>
-                       <p>No tips available in this category yet.</p>
+        
+        {/* --- DASHBOARD TAB --- */}
+        {activeTab === 'dashboard' && (
+            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-700">
+                
+                {/* WELCOME BANNER - NEW ADDITION */}
+                <div className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-r from-green-900/60 via-slate-900/80 to-slate-900/80 border border-white/10 p-8 shadow-2xl relative group">
+                   <div className="absolute top-0 right-0 p-10 opacity-10 group-hover:opacity-20 transition-opacity duration-1000">
+                      <Trophy size={200} className="transform rotate-12 text-white" />
                    </div>
-               )}
-           </div>
-        </div>
-      )}
-
-      {/* STATS TAB */}
-      {activeTab === 'stats' && (
-          <div className="space-y-8">
-              <h2 className="text-2xl font-black italic text-white mb-4">PERFORMANCE CENTER</h2>
-              <StatsWidget stats={stats} />
-              
-              <div className="bg-slate-900/50 border border-white/5 rounded-3xl p-6">
-                 <h3 className="text-lg font-bold text-white mb-6 flex items-center"><TrendingUp className="mr-2 text-brazil-green"/> Performance History</h3>
-                 <div className="h-64 w-full">
-                     <ResponsiveContainer width="100%" height="100%">
-                         <AreaChart data={stats.streak.map((s, i) => ({ name: i+1, win: s === TipStatus.WON ? 1 : 0 }))}>
-                             <defs>
-                                 <linearGradient id="colorWin" x1="0" y1="0" x2="0" y2="1">
-                                     <stop offset="5%" stopColor="#009c3b" stopOpacity={0.3}/>
-                                     <stop offset="95%" stopColor="#009c3b" stopOpacity={0}/>
-                                 </linearGradient>
-                             </defs>
-                             <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
-                             <XAxis dataKey="name" hide />
-                             <YAxis hide />
-                             <Tooltip 
-                                contentStyle={{backgroundColor: '#0f172a', border: 'none', borderRadius: '8px'}}
-                                itemStyle={{color: '#fff'}}
-                             />
-                             <Area type="monotone" dataKey="win" stroke="#009c3b" strokeWidth={3} fillOpacity={1} fill="url(#colorWin)" />
-                         </AreaChart>
-                     </ResponsiveContainer>
-                 </div>
-              </div>
-          </div>
-      )}
-
-      {/* NEWS TAB */}
-      {activeTab === 'news' && (
-          <div className="space-y-6">
-              <h2 className="text-2xl font-black italic text-white">LATEST NEWS</h2>
-              <div className="grid gap-6">
-                  {news.map(post => (
-                      <div key={post.id} className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden hover:border-slate-700 transition-all group">
-                          {post.imageUrl && (
-                              <div className="h-48 overflow-hidden relative">
-                                  <img src={post.imageUrl} alt={post.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                                  <div className="absolute top-4 left-4 bg-brazil-blue text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider shadow-lg">
-                                      {post.category}
-                                  </div>
-                              </div>
-                          )}
-                          <div className="p-6">
-                              <div className="flex justify-between items-start mb-3">
-                                  <span className="text-brazil-yellow text-xs font-bold uppercase">{post.source}</span>
-                                  <span className="text-slate-500 text-xs">{new Date(post.createdAt).toLocaleDateString()}</span>
-                              </div>
-                              <h3 className="text-xl font-bold text-white mb-3 leading-tight group-hover:text-brazil-green transition-colors">{post.title}</h3>
-                              <p className="text-slate-400 text-sm leading-relaxed mb-4">{post.body}</p>
-                              {user?.role === UserRole.ADMIN && (
-                                  <div className="flex gap-4">
-                                      <button onClick={() => { setAdminTab('news'); handleEditNews(post); }} type="button" className="text-blue-400 text-xs font-bold hover:underline">EDIT POST</button>
-                                      <button onClick={() => handleDeleteNews(post.id)} type="button" className="text-red-500 text-xs font-bold hover:underline">DELETE POST</button>
-                                  </div>
-                              )}
-                          </div>
+                   <div className="absolute bottom-0 left-0 w-full h-1/2 bg-gradient-to-t from-brazil-green/10 to-transparent"></div>
+                   
+                   <div className="relative z-10 max-w-2xl">
+                      <div className="flex items-center gap-2 mb-2">
+                          <Sparkles size={16} className="text-brazil-yellow animate-pulse" />
+                          <span className="text-brazil-yellow text-xs font-bold uppercase tracking-widest">Premium Member</span>
                       </div>
-                  ))}
-                  {news.length === 0 && <div className="text-center text-slate-500 py-10">No news yet.</div>}
-              </div>
-          </div>
-      )}
+                      <h1 className="text-3xl md:text-5xl font-black italic text-white mb-3 leading-tight">
+                         Welcome back, <br/>
+                         <span className="text-transparent bg-clip-text bg-gradient-to-r from-white to-slate-400">{user.displayName}!</span>
+                      </h1>
+                      <p className="text-slate-300 font-medium text-sm md:text-base max-w-md leading-relaxed">
+                         The arena is set for victory. Analyze the stats, check the latest insights, and make your move.
+                      </p>
+                   </div>
+                </div>
 
-      {/* SCORES TAB */}
-      {activeTab === 'scores' && (
-          <LiveScoreBoard />
-      )}
+                {/* Stats & Banner Section */}
+                <div className="space-y-8">
+                   <ImageSlider slides={slides} />
+                   <StatsWidget stats={stats} />
+                </div>
 
-      {/* CONTACT/MESSAGES TAB */}
-      {activeTab === 'contact' && (
-          <div className="max-w-2xl mx-auto space-y-6">
-              <h2 className="text-2xl font-black italic text-white">{user?.role === UserRole.ADMIN ? 'USER MESSAGES' : 'ASK THE MAESTRO'}</h2>
-              
-              {user?.role === UserRole.ADMIN ? (
-                  <div className="space-y-4">
-                      {messages.map(msg => (
-                          <div key={msg.id} className={`p-5 rounded-2xl border ${msg.isRead ? 'bg-slate-900 border-slate-800' : 'bg-slate-800 border-brazil-green/50'}`}>
-                              <div className="flex justify-between items-start mb-2">
-                                  <div>
-                                      <p className="font-bold text-white">{msg.userName}</p>
-                                      <p className="text-xs text-slate-500">ID: {msg.userId}</p>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                      <span className="text-xs text-slate-500">{new Date(msg.createdAt).toLocaleDateString()}</span>
-                                      <button onClick={() => handleDeleteMessage(msg.id)} className="text-red-500 hover:text-red-400 p-1"><Trash2 size={14}/></button>
-                                  </div>
-                              </div>
-                              <p className="text-slate-300 text-sm mb-4 bg-black/20 p-3 rounded-lg">{msg.content}</p>
-                              
-                              {msg.reply ? (
-                                  <div className="pl-4 border-l-2 border-brazil-green">
-                                      <p className="text-xs text-brazil-green font-bold mb-1">MAESTRO REPLY:</p>
-                                      <p className="text-sm text-white">{msg.reply}</p>
-                                  </div>
-                              ) : (
-                                  <div className="flex gap-2">
-                                      <input 
+                {/* Categories Tabs (Mobile Optimized) */}
+                <div className="sticky top-20 z-30 bg-slate-950/80 backdrop-blur-xl py-4 -mx-4 px-4 md:mx-0 md:px-0 md:bg-transparent md:backdrop-blur-none border-b border-white/5 md:border-0">
+                    <div className="flex space-x-3 overflow-x-auto pb-1 scrollbar-hide md:justify-center">
+                        {[TipCategory.SINGLE, TipCategory.ODD_2_PLUS, TipCategory.ODD_4_PLUS].map(cat => (
+                            <button
+                                key={cat}
+                                onClick={() => setMobileTab(cat)}
+                                className={`whitespace-nowrap px-6 py-2.5 rounded-full text-xs font-bold transition-all shadow-lg border ${
+                                    mobileTab === cat 
+                                    ? 'bg-white text-slate-900 border-white scale-105' 
+                                    : 'bg-slate-800/50 text-slate-400 border-white/5 hover:bg-slate-800 hover:text-white'
+                                }`}
+                            >
+                                {cat}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Tips Grid */}
+                <div>
+                    <div className="flex items-center gap-3 mb-6 px-2">
+                        <div className="p-2 bg-brazil-yellow/10 rounded-lg">
+                            <Target className="text-brazil-yellow" size={24} />
+                        </div>
+                        <h2 className="text-2xl font-black italic text-white tracking-tight">{mobileTab.toUpperCase()}</h2>
+                    </div>
+
+                    {tips.filter(t => t.category === mobileTab).length > 0 ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                            {tips.filter(t => t.category === mobileTab).map(tip => (
+                                <TipCard key={tip.id} tip={tip} isAdmin={user.role === UserRole.ADMIN} onVote={handleVote} />
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="text-center py-24 bg-slate-900/30 rounded-[2rem] border border-dashed border-slate-800 backdrop-blur-sm">
+                            <Target className="mx-auto h-16 w-16 text-slate-700 mb-4 opacity-50" />
+                            <h3 className="text-slate-400 font-bold text-lg">No tips available yet</h3>
+                            <p className="text-slate-600 text-sm mt-1">Check back later for new predictions.</p>
+                        </div>
+                    )}
+                </div>
+            </div>
+        )}
+
+        {/* --- STATS TAB --- */}
+        {activeTab === 'stats' && (
+            <div className="animate-in fade-in slide-in-from-bottom-8 duration-700">
+                <div className="flex items-center gap-3 mb-8">
+                    <div className="p-2 bg-brazil-green/10 rounded-xl">
+                        <Award className="text-brazil-green" size={28}/> 
+                    </div>
+                    <h2 className="text-3xl font-black italic text-white tracking-tight">PERFORMANCE STATS</h2>
+                </div>
+                
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                     <div className="glass-panel p-8 rounded-[2rem]">
+                        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-6">Win/Loss Distribution</h3>
+                        <div className="h-72 w-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={[
+                                    { name: 'Won', value: stats.wonTips },
+                                    { name: 'Total', value: stats.totalTips },
+                                    { name: 'Win %', value: stats.winRate }
+                                ]}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} opacity={0.3} />
+                                    <XAxis dataKey="name" stroke="#94a3b8" tick={{fontSize: 12, fontWeight: 700}} axisLine={false} tickLine={false} />
+                                    <YAxis stroke="#94a3b8" tick={{fontSize: 12}} axisLine={false} tickLine={false} />
+                                    <Tooltip 
+                                        contentStyle={{backgroundColor: '#0f172a', borderColor: 'rgba(255,255,255,0.1)', color: '#f8fafc', borderRadius: '16px', boxShadow: '0 10px 40px rgba(0,0,0,0.5)'}}
+                                        cursor={{fill: 'rgba(255,255,255,0.05)'}}
+                                    />
+                                    <Bar dataKey="value" fill="#009c3b" radius={[6, 6, 6, 6]} barSize={40} />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+                     </div>
+                </div>
+                
+                <div className="bg-gradient-to-br from-slate-900 to-black p-10 rounded-[2.5rem] border border-white/5 text-center shadow-2xl relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-brazil-yellow/5 rounded-full blur-[80px]"></div>
+                    <Trophy size={56} className="text-brazil-yellow mx-auto mb-6 relative z-10" />
+                    <h3 className="text-4xl font-black text-white mb-4 tracking-tight relative z-10">MAESTRO TRUST</h3>
+                    <p className="text-slate-400 max-w-lg mx-auto leading-relaxed relative z-10">
+                        Our AI-driven analysis coupled with expert human oversight delivers consistent results. 
+                        We maintain transparency with every tip settled.
+                    </p>
+                </div>
+            </div>
+        )}
+
+        {/* --- NEWS TAB --- */}
+        {activeTab === 'news' && (
+            <div className="animate-in fade-in slide-in-from-bottom-8 duration-700">
+                <div className="flex items-center gap-3 mb-8">
+                    <div className="p-2 bg-blue-500/10 rounded-xl">
+                        <Newspaper className="text-blue-400" size={28}/> 
+                    </div>
+                    <h2 className="text-3xl font-black italic text-white tracking-tight">LATEST NEWS</h2>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    {news.map(post => (
+                        <div key={post.id} className="glass-panel rounded-[2rem] overflow-hidden hover:border-white/20 transition-all group duration-500 hover:-translate-y-1">
+                             <div className="h-56 bg-slate-800 relative overflow-hidden">
+                                {post.imageUrl ? (
+                                    <img src={post.imageUrl} alt={post.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"/>
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center bg-slate-800">
+                                        <Newspaper size={48} className="text-slate-700"/>
+                                    </div>
+                                )}
+                                <div className="absolute top-4 left-4 bg-brazil-blue/90 backdrop-blur text-white text-[10px] font-black px-3 py-1.5 rounded-lg shadow-lg uppercase tracking-wider">
+                                    {post.category}
+                                </div>
+                             </div>
+                             <div className="p-8">
+                                 <div className="flex items-center text-[10px] text-slate-400 mb-4 font-bold uppercase tracking-wider space-x-2">
+                                     <span>{new Date(post.createdAt).toLocaleDateString()}</span>
+                                     {post.source && <span className="text-brazil-green">• {post.source}</span>}
+                                 </div>
+                                 <h3 className="text-xl font-bold text-white mb-4 leading-tight group-hover:text-brazil-yellow transition-colors">{post.title}</h3>
+                                 <p className="text-slate-400 text-sm line-clamp-3 mb-6 leading-relaxed">{post.body}</p>
+                                 <button className="text-brazil-green text-xs font-black flex items-center hover:text-white transition-colors uppercase tracking-widest">
+                                     READ FULL STORY <ChevronRight size={14} className="ml-1"/>
+                                 </button>
+                             </div>
+                        </div>
+                    ))}
+                    {news.length === 0 && (
+                        <div className="col-span-full text-center py-24 text-slate-500 font-medium">No news articles yet.</div>
+                    )}
+                </div>
+            </div>
+        )}
+
+        {/* --- SCORES TAB --- */}
+        {activeTab === 'scores' && (
+             <LiveScoreBoard />
+        )}
+
+        {/* --- CONTACT / CHAT TAB --- */}
+        {activeTab === 'contact' && (
+            <div className="animate-in fade-in slide-in-from-bottom-8 duration-700 h-[calc(100vh-160px)] flex flex-col">
+                 <div className="flex-1 glass-panel rounded-[2.5rem] overflow-hidden flex flex-col relative shadow-2xl">
+                     {/* Chat Header */}
+                     <div className="p-6 bg-slate-900/50 border-b border-white/5 flex items-center justify-between backdrop-blur-md">
+                         <h2 className="text-xl font-black italic text-white flex items-center gap-3">
+                            <MessageSquare className="text-brazil-green" size={24}/> 
+                            {user.role === UserRole.ADMIN ? 'USER MESSAGES' : 'ASK THE MAESTRO'}
+                         </h2>
+                     </div>
+                     
+                     {/* Chat Messages Area */}
+                     <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                         {messages.length === 0 ? (
+                             <div className="h-full flex flex-col items-center justify-center text-slate-600 opacity-50">
+                                 <MessageSquare size={64} className="mb-4"/>
+                                 <p className="text-sm font-bold tracking-widest uppercase">Start the conversation...</p>
+                             </div>
+                         ) : (
+                             messages.map(msg => (
+                                 <div key={msg.id} className={`flex flex-col ${msg.userId === user.uid ? 'items-end' : 'items-start'}`}>
+                                     <div className={`max-w-[85%] rounded-3xl p-5 shadow-lg ${msg.userId === user.uid ? 'bg-gradient-to-br from-brazil-green/80 to-green-800 text-white rounded-tr-none' : 'bg-slate-800 border border-white/5 text-slate-200 rounded-tl-none'}`}>
+                                         {user.role === UserRole.ADMIN && msg.userId !== user.uid && (
+                                             <div className="text-[10px] text-brazil-yellow font-bold mb-2 uppercase tracking-wider">{msg.userName}</div>
+                                         )}
+                                         <p className="text-sm leading-relaxed">{msg.content}</p>
+                                         <span className="text-[10px] opacity-50 mt-3 block text-right font-medium">{new Date(msg.createdAt).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
+                                     </div>
+                                     
+                                     {/* Admin Reply Display */}
+                                     {msg.reply && (
+                                         <div className="mt-2 ml-4 max-w-[85%] bg-blue-900/20 border border-blue-500/20 p-4 rounded-3xl rounded-tl-none text-slate-300 text-sm flex gap-3">
+                                             <div className="w-1 bg-blue-500 rounded-full shrink-0"></div>
+                                             <div>
+                                                 <span className="text-[10px] text-blue-400 font-bold uppercase block mb-1 tracking-wider">Jirvinho Reply</span>
+                                                 {msg.reply}
+                                             </div>
+                                         </div>
+                                     )}
+
+                                     {/* Admin Reply Input */}
+                                     {user.role === UserRole.ADMIN && !msg.reply && msg.userId !== user.uid && (
+                                         <div className="mt-3 flex w-full max-w-[85%] gap-2">
+                                             <input 
+                                                type="text" 
+                                                placeholder="Write a reply..."
+                                                className="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-4 py-2 text-xs text-white focus:border-brazil-green focus:outline-none"
+                                                value={replyText[msg.id] || ''}
+                                                onChange={(e) => setReplyText({...replyText, [msg.id]: e.target.value})}
+                                             />
+                                             <button 
+                                                onClick={() => handleReplyMessage(msg.id)}
+                                                className="bg-slate-800 hover:bg-brazil-green text-white p-2 rounded-xl transition-colors shadow-lg"
+                                             >
+                                                 <Send size={16}/>
+                                             </button>
+                                         </div>
+                                     )}
+                                 </div>
+                             ))
+                         )}
+                     </div>
+
+                     {/* Chat Input (User Only) */}
+                     {user.role !== UserRole.ADMIN && (
+                         <div className="p-6 bg-slate-900/50 border-t border-white/5 backdrop-blur-md">
+                             <div className="flex gap-3">
+                                 <input 
+                                    type="text"
+                                    value={contactMessage}
+                                    onChange={(e) => setContactMessage(e.target.value)}
+                                    placeholder="Type your message..."
+                                    className="flex-1 bg-slate-800 border-none rounded-2xl px-6 py-4 text-white placeholder-slate-500 focus:ring-2 focus:ring-brazil-green/50 focus:outline-none shadow-inner"
+                                    onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                                 />
+                                 <button 
+                                    onClick={handleSendMessage}
+                                    disabled={!contactMessage.trim()}
+                                    className="bg-brazil-green hover:bg-green-600 disabled:opacity-50 disabled:hover:bg-brazil-green text-white p-4 rounded-2xl transition-all active:scale-95 shadow-lg shadow-green-900/30"
+                                 >
+                                     <Send size={24}/>
+                                 </button>
+                             </div>
+                         </div>
+                     )}
+                 </div>
+            </div>
+        )}
+
+        {/* --- ADMIN TAB --- */}
+        {activeTab === 'admin' && user.role === UserRole.ADMIN && (
+            <div id="admin-panel" className="animate-in fade-in slide-in-from-bottom-8 duration-700 pb-20">
+                <div className="flex flex-col md:flex-row items-center justify-between mb-10 gap-4">
+                     <h2 className="text-3xl font-black italic text-white flex items-center gap-3">
+                        <Shield className="text-brazil-green" size={32}/> ADMIN PANEL
+                     </h2>
+                     {/* Sub-nav for Admin */}
+                     <div className="flex bg-slate-900/80 rounded-xl p-1.5 border border-white/5 backdrop-blur-md shadow-lg">
+                        {['overview', 'tips', 'news', 'slides', 'users'].map((t) => (
+                            <button
+                                key={t}
+                                onClick={() => setAdminTab(t as any)}
+                                className={`px-5 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${adminTab === t ? 'bg-slate-700 text-white shadow-lg transform scale-105' : 'text-slate-500 hover:text-white'}`}
+                            >
+                                {t}
+                            </button>
+                        ))}
+                     </div>
+                </div>
+
+                {/* OVERVIEW SUB-TAB */}
+                {adminTab === 'overview' && (
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                        <div className="glass-panel p-6 rounded-[2rem] text-center">
+                            <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-2">Total Users</p>
+                            <p className="text-4xl font-black text-white">{allUsers.length}</p>
+                        </div>
+                        <div className="glass-panel p-6 rounded-[2rem] text-center">
+                            <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-2">Active Tips</p>
+                            <p className="text-4xl font-black text-white">{tips.filter(t => t.status === TipStatus.PENDING).length}</p>
+                        </div>
+                        <div className="glass-panel p-6 rounded-[2rem] text-center">
+                            <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-2">Messages</p>
+                            <p className="text-4xl font-black text-white">{messages.length}</p>
+                        </div>
+                        <div className="glass-panel p-6 rounded-[2rem] text-center border-brazil-green/30 relative overflow-hidden">
+                             <div className="absolute inset-0 bg-brazil-green/5"></div>
+                            <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-2">Win Rate</p>
+                            <p className="text-4xl font-black text-brazil-green">{stats.winRate}%</p>
+                        </div>
+                    </div>
+                )}
+
+                {/* SLIDES MANAGEMENT */}
+                {adminTab === 'slides' && (
+                    <div className="space-y-8">
+                        {/* Slide Form */}
+                        <div className="bg-slate-900 p-8 rounded-[2rem] border border-slate-800">
+                            <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
+                                {editingSlideId ? <Edit3 size={18}/> : <Plus size={18}/>}
+                                {editingSlideId ? 'Edit Slide' : 'Add New Slide'}
+                            </h3>
+                            <div className="space-y-6">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">Image URL (or Base64)</label>
+                                    <div className="flex gap-3">
+                                        <input 
+                                            type="text" 
+                                            className="flex-1 bg-slate-950 border border-slate-800 rounded-xl p-4 text-white text-sm focus:border-brazil-green focus:outline-none transition-colors"
+                                            value={newSlide.image || ''}
+                                            onChange={(e) => setNewSlide({...newSlide, image: e.target.value})}
+                                            placeholder="https://..."
+                                        />
+                                        <label className="bg-slate-800 hover:bg-slate-700 text-white px-6 rounded-xl flex items-center cursor-pointer transition-colors border border-white/5">
+                                            <UploadCloud size={20} />
+                                            <input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, (val) => setNewSlide({...newSlide, image: val}))} />
+                                        </label>
+                                    </div>
+                                    {newSlide.image && (
+                                        <div className="mt-4 h-40 w-full rounded-2xl bg-cover bg-center border border-slate-700 shadow-lg" style={{backgroundImage: `url(${newSlide.image})`}}></div>
+                                    )}
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">Title</label>
+                                    <input 
                                         type="text" 
-                                        className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 text-sm text-white"
-                                        placeholder="Type reply..."
-                                        value={replyText[msg.id] || ''}
-                                        onChange={(e) => setReplyText({...replyText, [msg.id]: e.target.value})}
-                                      />
-                                      <button onClick={() => handleReplyMessage(msg.id)} className="bg-brazil-green px-4 py-2 rounded-lg text-white text-xs font-bold">Reply</button>
-                                  </div>
-                              )}
-                          </div>
-                      ))}
-                      {messages.length === 0 && <div className="text-center text-slate-500">No messages.</div>}
-                  </div>
-              ) : (
-                  <>
-                    {/* User Chat Interface */}
-                    <div className="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden flex flex-col h-[60vh]">
-                        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                            {/* Welcome Msg */}
-                            <div className="flex justify-start">
-                                <div className="bg-slate-800 rounded-2xl rounded-tl-none p-3 max-w-[80%] text-sm text-slate-300">
-                                    Hello! How can I help you today?
+                                        className="w-full bg-slate-950 border border-slate-800 rounded-xl p-4 text-white text-sm font-bold focus:border-brazil-green focus:outline-none transition-colors"
+                                        value={newSlide.title || ''}
+                                        onChange={(e) => setNewSlide({...newSlide, title: e.target.value})}
+                                        placeholder="e.g. WEEKEND MEGA JACKPOT"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">Subtitle</label>
+                                    <input 
+                                        type="text" 
+                                        className="w-full bg-slate-950 border border-slate-800 rounded-xl p-4 text-white text-sm focus:border-brazil-green focus:outline-none transition-colors"
+                                        value={newSlide.subtitle || ''}
+                                        onChange={(e) => setNewSlide({...newSlide, subtitle: e.target.value})}
+                                        placeholder="e.g. Win Big with 50+ Odds"
+                                    />
+                                </div>
+                                <div className="flex gap-4 pt-4">
+                                    {editingSlideId && (
+                                        <button 
+                                            onClick={() => { setEditingSlideId(null); setNewSlide({title:'', subtitle:'', image:''}); }}
+                                            className="px-6 py-3 bg-slate-800 text-slate-300 rounded-xl text-sm font-bold hover:bg-slate-700 transition-colors"
+                                        >
+                                            Cancel
+                                        </button>
+                                    )}
+                                    <button 
+                                        onClick={handleSaveSlide} 
+                                        disabled={isSaving}
+                                        className="flex-1 bg-brazil-green hover:bg-green-600 text-white py-3 rounded-xl font-bold shadow-lg shadow-green-900/20 disabled:opacity-50 uppercase tracking-widest transition-all"
+                                    >
+                                        {isSaving ? 'Saving...' : (editingSlideId ? 'Update Slide' : 'Publish Slide')}
+                                    </button>
                                 </div>
                             </div>
-                            
-                            {messages.map(msg => (
-                                <div key={msg.id} className="space-y-4">
-                                    <div className="flex justify-end">
-                                        <div className="bg-brazil-green text-white rounded-2xl rounded-tr-none p-3 max-w-[80%] text-sm shadow-lg">
-                                            {msg.content}
-                                        </div>
+                        </div>
+
+                        {/* Slides List */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {slides.map(slide => (
+                                <div key={slide.id} className="group relative h-48 rounded-[2rem] overflow-hidden border border-slate-800 shadow-lg">
+                                    <div className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-110" style={{backgroundImage: `url(${slide.image})`}}></div>
+                                    <div className="absolute inset-0 bg-black/50 group-hover:bg-black/40 transition-colors"></div>
+                                    <div className="absolute bottom-0 left-0 p-6">
+                                        <p className="text-white font-black text-lg italic">{slide.title}</p>
+                                        <p className="text-xs text-slate-300 font-medium">{slide.subtitle}</p>
                                     </div>
-                                    {msg.reply && (
-                                        <div className="flex justify-start">
-                                            <div className="bg-slate-800 border border-brazil-green/30 rounded-2xl rounded-tl-none p-3 max-w-[80%] text-sm text-white">
-                                                <span className="block text-[10px] font-bold text-brazil-green mb-1">MAESTRO</span>
-                                                {msg.reply}
-                                            </div>
-                                        </div>
-                                    )}
+                                    <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-all translate-y-2 group-hover:translate-y-0">
+                                        <button onClick={() => handleEditSlide(slide)} className="p-2 bg-white text-slate-900 rounded-full hover:scale-110 transition-transform"><Edit3 size={16}/></button>
+                                        <button onClick={() => handleDeleteSlide(slide.id)} className="p-2 bg-red-600 text-white rounded-full hover:scale-110 transition-transform"><Trash2 size={16}/></button>
+                                    </div>
                                 </div>
                             ))}
                         </div>
-                        <div className="p-4 bg-slate-950 border-t border-slate-800 flex gap-2">
-                            <input 
-                                type="text"
-                                className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-white focus:border-brazil-green outline-none"
-                                placeholder="Type your message..."
-                                value={contactMessage}
-                                onChange={(e) => setContactMessage(e.target.value)}
-                                onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                            />
-                            <button onClick={handleSendMessage} className="bg-brazil-green text-white p-3 rounded-xl hover:bg-green-600 transition-colors">
-                                <Send size={20}/>
-                            </button>
+                    </div>
+                )}
+
+                {/* TIPS MANAGEMENT */}
+                {adminTab === 'tips' && (
+                    <div className="space-y-8">
+                        {/* Add/Edit Tip Form */}
+                        <div className="bg-slate-900 p-8 rounded-[2.5rem] border border-slate-800 shadow-2xl">
+                            <div className="flex justify-between items-center mb-8">
+                                <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                                    {editingTipId ? <Edit3 size={20}/> : <Plus size={20}/>}
+                                    {editingTipId ? 'Edit Tip' : 'Add New Tip'}
+                                </h3>
+                                {editingTipId && (
+                                    <button 
+                                        onClick={() => { setEditingTipId(null); setNewTip({ category: TipCategory.SINGLE, teams: '', league: LEAGUES[0], prediction: '', odds: 1.50, confidence: 'Medium', sport: 'Football', bettingCode: '', legs: [], kickoffTime: '', analysis: '' }); }}
+                                        className="text-xs text-red-400 hover:text-red-300 font-bold uppercase tracking-wider bg-red-500/10 px-4 py-2 rounded-lg"
+                                    >
+                                        Cancel Edit
+                                    </button>
+                                )}
+                            </div>
+
+                            <div className="space-y-6">
+                                <div className="grid grid-cols-2 gap-6">
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">Category</label>
+                                        <select 
+                                            className="w-full bg-slate-950 border border-slate-800 rounded-xl p-4 text-white text-sm focus:border-brazil-green outline-none transition-colors"
+                                            value={newTip.category}
+                                            onChange={(e) => setNewTip({...newTip, category: e.target.value as TipCategory})}
+                                        >
+                                            {Object.values(TipCategory).map(c => <option key={c} value={c}>{c}</option>)}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">Kickoff Time</label>
+                                        <input 
+                                            type="datetime-local" 
+                                            className="w-full bg-slate-950 border border-slate-800 rounded-xl p-4 text-white text-sm focus:border-brazil-green outline-none transition-colors"
+                                            value={newTip.kickoffTime ? new Date(newTip.kickoffTime).toISOString().slice(0, 16) : ''}
+                                            onChange={(e) => setNewTip({...newTip, kickoffTime: new Date(e.target.value).toISOString()})}
+                                        />
+                                    </div>
+                                </div>
+
+                                {newTip.category === TipCategory.ODD_4_PLUS || newTip.category.includes('Multiple') ? (
+                                    // ACCUMULATOR BUILDER
+                                    <div className="bg-slate-950/50 p-6 rounded-2xl border border-dashed border-slate-700">
+                                        <h4 className="text-sm font-bold text-white mb-4 uppercase tracking-wider flex items-center gap-2"><List size={14}/> Accumulator Legs</h4>
+                                        <div className="space-y-3 mb-4">
+                                            {newTip.legs?.map((leg, idx) => (
+                                                <div key={idx} className="flex items-center justify-between bg-slate-800 p-3 rounded-xl text-sm border border-slate-700">
+                                                    <span className="text-slate-200 font-medium">{leg.teams} <span className="text-slate-500">({leg.prediction})</span></span>
+                                                    <button onClick={() => handleRemoveLeg(idx)} className="text-red-500 hover:text-red-400 p-1 hover:bg-red-500/10 rounded"><X size={16}/></button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                            <input 
+                                                placeholder="Teams (e.g. Chelsea vs Arsenal)" 
+                                                className="bg-slate-900 border border-slate-800 rounded-xl p-3 text-xs text-white focus:border-brazil-green outline-none"
+                                                value={multiLegInput.teams}
+                                                onChange={(e) => setMultiLegInput({...multiLegInput, teams: e.target.value})}
+                                            />
+                                            <input 
+                                                placeholder="Prediction" 
+                                                className="bg-slate-900 border border-slate-800 rounded-xl p-3 text-xs text-white focus:border-brazil-green outline-none"
+                                                value={multiLegInput.prediction}
+                                                onChange={(e) => setMultiLegInput({...multiLegInput, prediction: e.target.value})}
+                                            />
+                                            <button 
+                                                onClick={handleAddLeg}
+                                                className="bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold rounded-xl shadow-lg"
+                                            >
+                                                Add Leg
+                                            </button>
+                                        </div>
+                                        <div className="mt-5">
+                                            <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">Summary Title</label>
+                                            <input 
+                                                type="text" 
+                                                placeholder="e.g. Premier League Treble"
+                                                className="w-full bg-slate-950 border border-slate-800 rounded-xl p-4 text-white text-sm focus:border-brazil-green outline-none transition-colors"
+                                                value={newTip.teams || ''}
+                                                onChange={(e) => setNewTip({...newTip, teams: e.target.value})}
+                                            />
+                                        </div>
+                                    </div>
+                                ) : (
+                                    // SINGLE MATCH INPUTS
+                                    <>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">Teams</label>
+                                            <input 
+                                                type="text" 
+                                                placeholder="e.g. Real Madrid vs Barcelona"
+                                                className="w-full bg-slate-950 border border-slate-800 rounded-xl p-4 text-white text-sm focus:border-brazil-green outline-none transition-colors"
+                                                value={newTip.teams || ''}
+                                                onChange={(e) => setNewTip({...newTip, teams: e.target.value})}
+                                            />
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-6">
+                                            <div>
+                                                <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">League</label>
+                                                <select 
+                                                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-4 text-white text-sm focus:border-brazil-green outline-none transition-colors"
+                                                    value={newTip.league}
+                                                    onChange={(e) => setNewTip({...newTip, league: e.target.value})}
+                                                >
+                                                    {LEAGUES.map(l => <option key={l} value={l}>{l}</option>)}
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">Prediction</label>
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="e.g. Home Win & Over 2.5"
+                                                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-4 text-white text-sm focus:border-brazil-green outline-none transition-colors"
+                                                    value={newTip.prediction || ''}
+                                                    onChange={(e) => setNewTip({...newTip, prediction: e.target.value})}
+                                                />
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
+
+                                <div className="grid grid-cols-2 gap-6">
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">Odds</label>
+                                        <input 
+                                            type="number" 
+                                            step="0.01"
+                                            className="w-full bg-slate-950 border border-slate-800 rounded-xl p-4 text-white text-sm focus:border-brazil-green outline-none transition-colors"
+                                            value={newTip.odds}
+                                            onChange={(e) => setNewTip({...newTip, odds: parseFloat(e.target.value)})}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">Booking Code (Opt)</label>
+                                        <input 
+                                            type="text" 
+                                            placeholder="e.g. 8X92K"
+                                            className="w-full bg-slate-950 border border-slate-800 rounded-xl p-4 text-white text-sm font-mono tracking-wider focus:border-brazil-green outline-none transition-colors"
+                                            value={newTip.bettingCode || ''}
+                                            onChange={(e) => setNewTip({...newTip, bettingCode: e.target.value})}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <div className="flex justify-between items-end mb-2">
+                                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Analysis</label>
+                                        <button 
+                                            onClick={handleGenerateAnalysis}
+                                            disabled={isGeneratingAI}
+                                            className="text-[10px] text-brazil-green font-bold flex items-center hover:text-white transition-colors disabled:opacity-50 uppercase tracking-widest bg-green-900/10 px-3 py-1 rounded-full border border-green-900/20"
+                                        >
+                                            <Wand2 size={12} className="mr-1"/> {isGeneratingAI ? 'Generating...' : 'AI Generate'}
+                                        </button>
+                                    </div>
+                                    <textarea 
+                                        className="w-full bg-slate-950 border border-slate-800 rounded-xl p-4 text-white text-sm h-32 focus:border-brazil-green outline-none resize-none transition-colors"
+                                        placeholder="Expert insights about this match..."
+                                        value={newTip.analysis || ''}
+                                        onChange={(e) => setNewTip({...newTip, analysis: e.target.value})}
+                                    />
+                                </div>
+
+                                <button 
+                                    onClick={handleSaveTip}
+                                    disabled={isSaving}
+                                    className="w-full bg-gradient-to-r from-brazil-green to-green-600 hover:from-green-500 hover:to-green-400 text-white font-black uppercase tracking-widest py-4 rounded-xl shadow-xl shadow-green-900/20 active:scale-[0.98] transition-all disabled:opacity-50"
+                                >
+                                    {isSaving ? 'SAVING...' : (editingTipId ? 'UPDATE TIP' : 'PUBLISH TIP')}
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Existing Tips List */}
+                        <div className="space-y-6">
+                            <h3 className="text-xl font-bold text-white mb-4 pl-2">Manage Tips</h3>
+                            {tips.length === 0 && <p className="text-slate-500 pl-2">No tips found.</p>}
+                            {tips.map(tip => (
+                                <TipCard 
+                                    key={tip.id} 
+                                    tip={tip} 
+                                    isAdmin={true} 
+                                    onSettle={handleSettleTip} 
+                                    onDelete={handleDeleteTip}
+                                    onVerify={handleVerifyResult}
+                                    onEdit={handleEditTip}
+                                />
+                            ))}
                         </div>
                     </div>
-                  </>
-              )}
-          </div>
-      )}
+                )}
 
-      {/* ADMIN TAB */}
-      {activeTab === 'admin' && user?.role === UserRole.ADMIN && (
-          <div className="bg-slate-900 rounded-3xl p-6 border border-slate-800 min-h-[80vh]" id="admin-panel">
-              <div className="flex items-center gap-4 mb-8 overflow-x-auto pb-2">
-                  {[
-                    {id: 'overview', icon: LayoutDashboard}, 
-                    {id: 'tips', icon: Target}, 
-                    {id: 'news', icon: Newspaper}, 
-                    {id: 'slides', icon: ImageIcon},
-                    {id: 'users', icon: Users}
-                  ].map(tab => (
-                      <button 
-                        key={tab.id}
-                        onClick={() => setAdminTab(tab.id as any)}
-                        className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all ${adminTab === tab.id ? 'bg-white text-black' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}
-                      >
-                          <tab.icon size={16}/> <span className="uppercase">{tab.id}</span>
-                      </button>
-                  ))}
-              </div>
+                {/* NEWS MANAGEMENT */}
+                {adminTab === 'news' && (
+                    <div className="space-y-8">
+                         <div className="bg-slate-900 p-8 rounded-[2.5rem] border border-slate-800">
+                             <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
+                                {editingNewsId ? <Edit3 size={18}/> : <Plus size={18}/>}
+                                {editingNewsId ? 'Edit News' : 'Add News Article'}
+                            </h3>
+                             <div className="space-y-6">
+                                 <div>
+                                     <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">Title</label>
+                                     <input 
+                                         type="text" 
+                                         className="w-full bg-slate-950 border border-slate-800 rounded-xl p-4 text-white text-sm focus:border-brazil-green focus:outline-none transition-colors"
+                                         value={newNews.title || ''}
+                                         onChange={(e) => setNewNews({...newNews, title: e.target.value})}
+                                     />
+                                 </div>
+                                 <div>
+                                     <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">Image URL (or upload)</label>
+                                     <div className="flex gap-3">
+                                        <input 
+                                            type="text" 
+                                            className="flex-1 bg-slate-950 border border-slate-800 rounded-xl p-4 text-white text-sm focus:border-brazil-green focus:outline-none transition-colors"
+                                            value={newNews.imageUrl || ''}
+                                            onChange={(e) => setNewNews({...newNews, imageUrl: e.target.value})}
+                                        />
+                                        <label className="bg-slate-800 hover:bg-slate-700 text-white px-6 rounded-xl flex items-center cursor-pointer transition-colors border border-white/5">
+                                            <UploadCloud size={20} />
+                                            <input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, (val) => setNewNews({...newNews, imageUrl: val}))} />
+                                        </label>
+                                     </div>
+                                 </div>
+                                 <div>
+                                     <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">Content</label>
+                                     <textarea 
+                                         className="w-full bg-slate-950 border border-slate-800 rounded-xl p-4 text-white text-sm h-40 resize-none focus:border-brazil-green focus:outline-none transition-colors"
+                                         value={newNews.body || ''}
+                                         onChange={(e) => setNewNews({...newNews, body: e.target.value})}
+                                     />
+                                 </div>
+                                 <div className="flex gap-4">
+                                     {editingNewsId && (
+                                         <button onClick={() => { setEditingNewsId(null); setNewNews({ title: '', category: 'Football', source: '', body: '', imageUrl: '', videoUrl: '', matchDate: '' }); }} className="px-6 bg-slate-800 text-slate-300 rounded-xl text-sm font-bold hover:bg-slate-700 transition-colors">Cancel</button>
+                                     )}
+                                     <button onClick={handleSaveNews} disabled={isSaving} className="flex-1 bg-brazil-green hover:bg-green-600 text-white py-3 rounded-xl font-bold shadow-lg shadow-green-900/20 disabled:opacity-50 uppercase tracking-widest transition-all">
+                                         {isSaving ? 'Saving...' : (editingNewsId ? 'Update Article' : 'Publish Article')}
+                                     </button>
+                                 </div>
+                             </div>
+                         </div>
+                         
+                         <div className="space-y-4">
+                             {news.map(post => (
+                                 <div key={post.id} className="bg-slate-900 p-5 rounded-2xl border border-slate-800 flex justify-between items-center shadow-lg hover:border-white/10 transition-colors">
+                                     <div className="flex items-center gap-5">
+                                         {post.imageUrl && <img src={post.imageUrl} className="w-16 h-16 rounded-xl object-cover shadow-md" alt="" />}
+                                         <div>
+                                             <h4 className="text-white font-bold text-lg">{post.title}</h4>
+                                             <p className="text-xs text-slate-500 mt-1 font-medium">{new Date(post.createdAt).toLocaleDateString()}</p>
+                                         </div>
+                                     </div>
+                                     <div className="flex gap-2">
+                                         <button onClick={() => handleEditNews(post)} className="p-2.5 bg-slate-800 text-white rounded-xl hover:bg-slate-700 hover:scale-110 transition-all"><Edit3 size={18}/></button>
+                                         <button onClick={() => handleDeleteNews(post.id)} className="p-2.5 bg-red-500/10 text-red-500 rounded-xl hover:bg-red-500 hover:text-white hover:scale-110 transition-all"><Trash2 size={18}/></button>
+                                     </div>
+                                 </div>
+                             ))}
+                         </div>
+                    </div>
+                )}
 
-              {/* Admin: Overview */}
-              {adminTab === 'overview' && (
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div className="bg-slate-800 p-5 rounded-2xl border border-slate-700">
-                          <p className="text-slate-400 text-xs font-bold uppercase">Total Tips</p>
-                          <p className="text-3xl font-black text-white mt-2">{tips.length}</p>
-                      </div>
-                      <div className="bg-slate-800 p-5 rounded-2xl border border-slate-700">
-                          <p className="text-slate-400 text-xs font-bold uppercase">Pending</p>
-                          <p className="text-3xl font-black text-brazil-yellow mt-2">{tips.filter(t => t.status === TipStatus.PENDING).length}</p>
-                      </div>
-                      <div className="bg-slate-800 p-5 rounded-2xl border border-slate-700">
-                          <p className="text-slate-400 text-xs font-bold uppercase">Win Rate</p>
-                          <p className="text-3xl font-black text-brazil-green mt-2">{stats.winRate}%</p>
-                      </div>
-                      <div className="bg-slate-800 p-5 rounded-2xl border border-slate-700">
-                          <p className="text-slate-400 text-xs font-bold uppercase">Users</p>
-                          <p className="text-3xl font-black text-white mt-2">{allUsers.length}</p>
-                      </div>
-                  </div>
-              )}
-
-              {/* Admin: Tips Management */}
-              {adminTab === 'tips' && (
-                  <div className="space-y-6">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          {/* Form */}
-                          <div className="space-y-4">
-                              <h3 className="font-bold text-white flex items-center"><Plus size={16} className="mr-2"/> {editingTipId ? 'Edit Tip' : 'New Tip'}</h3>
-                              <select 
-                                className="w-full bg-slate-950 p-3 rounded-xl text-white border border-slate-700"
-                                value={newTip.category}
-                                onChange={e => setNewTip({...newTip, category: e.target.value as TipCategory})}
-                              >
-                                  {Object.values(TipCategory).map(c => <option key={c} value={c}>{c}</option>)}
-                              </select>
-                              
-                              {(newTip.category === TipCategory.ODD_4_PLUS || newTip.category === TipCategory.ODD_2_PLUS) && (
-                                  <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 space-y-3">
-                                      <p className="text-xs font-bold text-slate-400 uppercase">Accumulator Legs</p>
-                                      {newTip.legs?.map((leg, idx) => (
-                                          <div key={idx} className="flex justify-between items-center bg-slate-900 p-2 rounded text-sm">
-                                              <span className="text-white">{leg.teams} - {leg.prediction}</span>
-                                              <button onClick={() => handleRemoveLeg(idx)} className="text-red-500"><X size={14}/></button>
-                                          </div>
-                                      ))}
-                                      <div className="grid grid-cols-2 gap-2">
-                                          <input placeholder="Teams" className="bg-slate-900 p-2 rounded text-white text-sm" value={multiLegInput.teams} onChange={e => setMultiLegInput({...multiLegInput, teams: e.target.value})} />
-                                          <input placeholder="Pick" className="bg-slate-900 p-2 rounded text-white text-sm" value={multiLegInput.prediction} onChange={e => setMultiLegInput({...multiLegInput, prediction: e.target.value})} />
-                                      </div>
-                                      <button onClick={handleAddLeg} className="w-full bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold py-2 rounded transition-colors">Add Leg</button>
-                                  </div>
-                              )}
-
-                              <input 
-                                className="w-full bg-slate-950 p-3 rounded-xl text-white border border-slate-700"
-                                placeholder={newTip.category === TipCategory.SINGLE ? "Teams (e.g. Real Madrid vs Barcelona)" : "Summary Title"}
-                                value={newTip.teams}
-                                onChange={e => setNewTip({...newTip, teams: e.target.value})}
-                              />
-                              
-                              {/* Enhanced League Selector */}
-                              <div className="space-y-2">
-                                <select
-                                    className="w-full bg-slate-950 p-3 rounded-xl text-white border border-slate-700"
-                                    value={LEAGUES.includes(newTip.league || '') ? newTip.league : 'Other'}
-                                    onChange={e => {
-                                        const val = e.target.value;
-                                        setNewTip({ ...newTip, league: val === 'Other' ? '' : val });
-                                    }}
-                                >
-                                    {LEAGUES.map(l => <option key={l} value={l}>{l}</option>)}
-                                    <option value="Other">Other / Custom League...</option>
-                                </select>
-                                {(!newTip.league || !LEAGUES.includes(newTip.league)) && (
-                                    <input 
-                                        className="w-full bg-slate-900 p-3 rounded-xl text-white border border-slate-600 focus:border-brazil-green"
-                                        placeholder="Type custom league name..."
-                                        value={newTip.league}
-                                        onChange={e => setNewTip({...newTip, league: e.target.value})}
-                                        autoFocus
-                                    />
-                                )}
-                              </div>
-
-                              <div className="flex gap-2">
-                                  <input 
-                                    className="w-1/2 bg-slate-950 p-3 rounded-xl text-white border border-slate-700"
-                                    placeholder="Prediction"
-                                    value={newTip.prediction}
-                                    onChange={e => setNewTip({...newTip, prediction: e.target.value})}
-                                  />
-                                  <input 
-                                    type="number"
-                                    className="w-1/2 bg-slate-950 p-3 rounded-xl text-white border border-slate-700"
-                                    placeholder="Odds"
-                                    step="0.01"
-                                    value={newTip.odds}
-                                    onChange={e => setNewTip({...newTip, odds: parseFloat(e.target.value)})}
-                                  />
-                              </div>
-                              
-                              <div className="relative">
-                                  <textarea 
-                                    className="w-full bg-slate-950 p-3 rounded-xl text-white border border-slate-700 h-24"
-                                    placeholder="Analysis..."
-                                    value={newTip.analysis}
-                                    onChange={e => setNewTip({...newTip, analysis: e.target.value})}
-                                  />
-                                  <button 
-                                    onClick={handleGenerateAnalysis}
-                                    // Removed blocking logic for fast feel
-                                    className="absolute bottom-3 right-3 bg-brazil-blue/20 hover:bg-brazil-blue text-blue-400 hover:text-white p-2 rounded-lg transition-all"
-                                    title="Generate AI Analysis"
-                                  >
-                                      <Wand2 size={14}/>
-                                  </button>
-                              </div>
-                              <input 
-                                type="datetime-local"
-                                className="w-full bg-slate-950 p-3 rounded-xl text-white border border-slate-700"
-                                value={newTip.kickoffTime ? new Date(newTip.kickoffTime).toISOString().slice(0, 16) : ''}
-                                onChange={e => setNewTip({...newTip, kickoffTime: new Date(e.target.value).toISOString()})}
-                              />
-                              <input 
-                                className="w-full bg-slate-950 p-3 rounded-xl text-white border border-slate-700"
-                                placeholder="Betting Code (Optional)"
-                                value={newTip.bettingCode}
-                                onChange={e => setNewTip({...newTip, bettingCode: e.target.value})}
-                              />
-
-                              <div className="flex gap-2">
-                                  {editingTipId && (
-                                      <button onClick={() => {setEditingTipId(null); setNewTip({category: TipCategory.SINGLE, teams: '', league: LEAGUES[0], prediction: '', odds: 1.50, confidence: 'Medium', sport: 'Football', bettingCode: '', legs: [], kickoffTime: '', analysis: ''});}} className="flex-1 bg-slate-700 text-white py-3 rounded-xl font-bold">Cancel</button>
-                                  )}
-                                  <button onClick={handleSaveTip} className="flex-1 bg-brazil-green hover:bg-green-600 text-white py-3 rounded-xl font-bold shadow-lg shadow-green-900/20 transition-all flex items-center justify-center">
-                                      {editingTipId ? 'Update Tip' : 'Post Tip'}
-                                  </button>
-                              </div>
-                          </div>
-                          
-                          {/* List */}
-                          <div className="bg-slate-950/50 rounded-2xl p-4 max-h-[600px] overflow-y-auto">
-                              <h3 className="text-slate-400 text-xs font-bold uppercase mb-4">Recent Tips</h3>
-                              {tips.map(tip => (
-                                  <div key={tip.id} className="mb-2 bg-slate-900 p-3 rounded-lg border border-slate-800 flex justify-between items-center group hover:border-slate-600">
-                                      <div>
-                                          <p className="font-bold text-white text-sm">{tip.teams}</p>
-                                          <p className="text-xs text-slate-500">{tip.league}</p>
-                                      </div>
-                                      <div className="flex gap-2 opacity-50 group-hover:opacity-100 transition-opacity">
-                                          <button onClick={() => handleEditTip(tip)} className="p-1.5 bg-blue-900/30 text-blue-400 rounded hover:bg-blue-600 hover:text-white"><Edit3 size={14}/></button>
-                                          <button onClick={() => handleDeleteTip(tip.id)} className="p-1.5 bg-red-900/30 text-red-400 rounded hover:bg-red-600 hover:text-white"><Trash2 size={14}/></button>
-                                      </div>
-                                  </div>
-                              ))}
-                          </div>
-                      </div>
-                  </div>
-              )}
-
-              {/* Admin: News */}
-              {adminTab === 'news' && (
-                  <div className="space-y-4 max-w-2xl">
-                      <h3 className="font-bold text-white flex items-center mb-4"><Newspaper size={16} className="mr-2"/> {editingNewsId ? 'Edit News' : 'Post News'}</h3>
-                      <div className="bg-slate-800 p-4 rounded-xl border border-slate-700">
-                          <label className="block text-xs font-bold text-slate-400 uppercase mb-2">News Image Upload</label>
-                          <div className="flex items-center gap-4">
-                              <label className="cursor-pointer flex items-center justify-center bg-slate-900 hover:bg-slate-950 text-white border border-dashed border-slate-600 rounded-lg p-6 w-full transition-all group">
-                                  <input type="file" accept="image/*" className="hidden" onChange={e => handleImageUpload(e, (base64) => setNewNews({...newNews, imageUrl: base64}))} />
-                                  <div className="flex flex-col items-center gap-2">
-                                      <UploadCloud className="text-slate-400 group-hover:text-brazil-green transition-colors" size={24} />
-                                      <span className="text-sm font-bold text-slate-400 group-hover:text-white">Click to Upload Image</span>
-                                  </div>
-                              </label>
-                              {newNews.imageUrl && (
-                                  <div className="w-24 h-24 rounded-lg overflow-hidden border border-white/20 shrink-0">
-                                      <img src={newNews.imageUrl} alt="Preview" className="w-full h-full object-cover" />
-                                  </div>
-                              )}
-                          </div>
-                      </div>
-
-                      <input 
-                        className="w-full bg-slate-950 p-3 rounded-xl text-white border border-slate-700"
-                        placeholder="News Headline"
-                        value={newNews.title}
-                        onChange={e => setNewNews({...newNews, title: e.target.value})}
-                      />
-                      <textarea 
-                        className="w-full bg-slate-950 p-3 rounded-xl text-white border border-slate-700 h-32"
-                        placeholder="Body content..."
-                        value={newNews.body}
-                        onChange={e => setNewNews({...newNews, body: e.target.value})}
-                      />
-                      <div className="flex gap-2">
-                        <input 
-                            className="w-1/2 bg-slate-950 p-3 rounded-xl text-white border border-slate-700"
-                            placeholder="Category"
-                            value={newNews.category}
-                            onChange={e => setNewNews({...newNews, category: e.target.value})}
-                        />
-                         <input 
-                            className="w-1/2 bg-slate-950 p-3 rounded-xl text-white border border-slate-700"
-                            placeholder="Source"
-                            value={newNews.source}
-                            onChange={e => setNewNews({...newNews, source: e.target.value})}
-                        />
-                      </div>
-                      
-                      <div className="flex gap-2">
-                        {editingNewsId && (
-                            <button onClick={() => { setEditingNewsId(null); setNewNews({ title: '', category: 'Football', source: '', body: '', imageUrl: '', videoUrl: '', matchDate: '' }); }} className="flex-1 bg-slate-700 text-white py-3 rounded-xl font-bold">Cancel</button>
-                        )}
-                        <button onClick={handleSaveNews} className="flex-1 bg-brazil-green text-white py-3 rounded-xl font-bold flex items-center justify-center">
-                            {editingNewsId ? 'Update News' : 'Publish News'}
-                        </button>
-                      </div>
-
-                      <div className="mt-8 border-t border-slate-700 pt-6">
-                           <h3 className="text-slate-400 text-xs font-bold uppercase mb-4">Existing News</h3>
-                           <div className="space-y-3">
-                               {news.map(post => (
-                                   <div key={post.id} className="bg-slate-900 p-3 rounded-lg border border-slate-800 flex justify-between items-center">
-                                       <span className="text-white text-sm truncate w-2/3">{post.title}</span>
-                                       <div className="flex gap-2">
-                                           <button onClick={() => handleEditNews(post)} className="text-blue-400 p-2 hover:bg-blue-900/20 rounded"><Edit3 size={14}/></button>
-                                           <button onClick={() => handleDeleteNews(post.id)} className="text-red-500 p-2 hover:bg-red-900/20 rounded"><Trash2 size={14}/></button>
-                                       </div>
-                                   </div>
-                               ))}
-                           </div>
-                      </div>
-                  </div>
-              )}
-
-              {/* Admin: Slides Management */}
-              {adminTab === 'slides' && (
-                  <div className="space-y-6">
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                           {/* Add Slide Form */}
-                           <div className="md:col-span-1 space-y-4">
-                               <div className="bg-slate-800 p-4 rounded-xl border border-slate-700">
-                                  <h3 className="font-bold text-white mb-4 flex items-center"><Plus size={16} className="mr-2"/> {editingSlideId ? 'Edit Slide' : 'Add New Slide'}</h3>
-                                  
-                                  {/* Image Upload */}
-                                  <div className="mb-4">
-                                      <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Slide Image</label>
-                                      <label className="cursor-pointer block w-full aspect-video bg-slate-900 hover:bg-slate-950 border border-dashed border-slate-600 rounded-lg flex flex-col items-center justify-center transition-all group overflow-hidden relative">
-                                          <input type="file" accept="image/*" className="hidden" onChange={e => handleImageUpload(e, (base64) => setNewSlide({...newSlide, image: base64}))} />
-                                          {newSlide.image ? (
-                                              <img src={newSlide.image} alt="Preview" className="absolute inset-0 w-full h-full object-cover" />
-                                          ) : (
-                                              <>
-                                                  <UploadCloud className="text-slate-500 group-hover:text-brazil-green mb-2" size={24} />
-                                                  <span className="text-xs text-slate-500">Upload Banner</span>
-                                              </>
-                                          )}
-                                      </label>
-                                  </div>
-
-                                  <input 
-                                    className="w-full bg-slate-900 p-3 rounded-xl text-white border border-slate-600 mb-2"
-                                    placeholder="Main Title"
-                                    value={newSlide.title}
-                                    onChange={e => setNewSlide({...newSlide, title: e.target.value})}
-                                  />
-                                  <input 
-                                    className="w-full bg-slate-900 p-3 rounded-xl text-white border border-slate-600 mb-4"
-                                    placeholder="Subtitle"
-                                    value={newSlide.subtitle}
-                                    onChange={e => setNewSlide({...newSlide, subtitle: e.target.value})}
-                                  />
-                                  
-                                  <div className="flex gap-2">
-                                    {editingSlideId && (
-                                        <button onClick={() => { setEditingSlideId(null); setNewSlide({ title: '', subtitle: '', image: '' }); }} className="flex-1 bg-slate-700 text-white py-3 rounded-xl font-bold">Cancel</button>
-                                    )}
-                                    <button onClick={handleSaveSlide} className="flex-1 bg-brazil-green text-white py-3 rounded-xl font-bold flex items-center justify-center">
-                                      {editingSlideId ? 'Update' : 'Add'}
-                                    </button>
-                                  </div>
-                               </div>
-                           </div>
-
-                           {/* Existing Slides List */}
-                           <div className="md:col-span-2 space-y-4">
-                               <h3 className="font-bold text-white">Active Slides</h3>
-                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                   {slides.map(slide => (
-                                       <div key={slide.id} className="relative group rounded-xl overflow-hidden border border-slate-700 aspect-video">
-                                           <img src={slide.image} alt={slide.title} className="w-full h-full object-cover" />
-                                           <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-4">
-                                               <h4 className="text-white font-bold">{slide.title}</h4>
-                                               <p className="text-xs text-slate-300">{slide.subtitle}</p>
-                                               <div className="absolute top-2 right-2 flex gap-2">
-                                                    <button 
-                                                        onClick={() => handleEditSlide(slide)}
-                                                        type="button"
-                                                        className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                                                    >
-                                                        <Edit3 size={16} />
-                                                    </button>
-                                                    <button 
-                                                        onClick={() => handleDeleteSlide(slide.id)}
-                                                        type="button"
-                                                        className="p-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-                                                    >
-                                                        <Trash2 size={16} />
-                                                    </button>
-                                               </div>
-                                           </div>
-                                       </div>
-                                   ))}
-                                   {slides.length === 0 && <p className="text-slate-500 text-sm">No slides added yet.</p>}
-                               </div>
-                           </div>
-                      </div>
-                  </div>
-              )}
-
-              {/* Admin: Users */}
-              {adminTab === 'users' && (
-                  <div className="overflow-x-auto">
-                      <table className="w-full text-left border-collapse">
-                          <thead>
-                              <tr className="text-slate-400 text-xs uppercase border-b border-slate-700">
-                                  <th className="p-3">User</th>
-                                  <th className="p-3">Email</th>
-                                  <th className="p-3">Role</th>
-                                  <th className="p-3 text-right">Actions</th>
-                              </tr>
-                          </thead>
-                          <tbody>
-                              {allUsers.map(u => (
-                                  <tr key={u.uid} className="border-b border-slate-800 hover:bg-slate-800/50">
-                                      <td className="p-3 text-white font-medium">{u.displayName}</td>
-                                      <td className="p-3 text-slate-400 text-sm">{u.email}</td>
-                                      <td className="p-3"><span className={`text-[10px] font-bold px-2 py-0.5 rounded ${u.role === UserRole.ADMIN ? 'bg-brazil-green/20 text-brazil-green' : 'bg-slate-700 text-slate-300'}`}>{u.role}</span></td>
-                                      <td className="p-3 text-right">
-                                          {u.role !== UserRole.ADMIN && (
-                                              <button onClick={() => handleUserAction(u.uid, 'make_admin')} className="text-xs text-brazil-green font-bold mr-3 hover:underline">PROMOTE</button>
-                                          )}
-                                          <button onClick={() => handleUserAction(u.uid, 'delete')} className="text-xs text-red-500 font-bold hover:underline">REMOVE</button>
-                                      </td>
-                                  </tr>
-                              ))}
-                          </tbody>
-                      </table>
-                  </div>
-              )}
-          </div>
-      )}
+                {/* USERS MANAGEMENT */}
+                {adminTab === 'users' && (
+                    <div className="bg-slate-900 p-8 rounded-[2.5rem] border border-slate-800">
+                        <h3 className="text-xl font-bold text-white mb-8">User Management</h3>
+                        <div className="space-y-4">
+                            {allUsers.map(u => (
+                                <div key={u.uid} className="flex items-center justify-between bg-slate-950 p-5 rounded-2xl border border-slate-800">
+                                    <div>
+                                        <p className="text-white font-bold text-lg">{u.displayName || 'No Name'}</p>
+                                        <p className="text-xs text-slate-500 mt-1 font-medium">{u.email} • <span className={u.role === UserRole.ADMIN ? 'text-brazil-green font-bold' : 'text-slate-500'}>{u.role}</span></p>
+                                    </div>
+                                    <div className="flex gap-3">
+                                        {u.role !== UserRole.ADMIN && (
+                                            <button 
+                                                onClick={() => handleUserAction(u.uid, 'make_admin')}
+                                                className="px-4 py-2 bg-blue-900/20 text-blue-400 text-xs font-bold uppercase rounded-xl hover:bg-blue-500 hover:text-white transition-all tracking-wider"
+                                            >
+                                                Make Admin
+                                            </button>
+                                        )}
+                                        <button 
+                                            onClick={() => handleUserAction(u.uid, 'delete')}
+                                            className="p-2 text-slate-600 hover:text-red-500 transition-colors hover:bg-red-500/10 rounded-xl"
+                                            title="Delete User"
+                                        >
+                                            <Trash2 size={18}/>
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+            </div>
+        )}
 
     </Layout>
   );

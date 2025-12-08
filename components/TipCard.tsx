@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Clock, CheckCircle2, XCircle, MinusCircle, ThumbsUp, ThumbsDown, Copy, Check, List, Share2, Wand2, ArrowRight, Edit3 } from 'lucide-react';
+import { Clock, CheckCircle2, XCircle, MinusCircle, ThumbsUp, ThumbsDown, Copy, Check, List, Share2, Wand2, ArrowRight, Edit3, ShieldCheck } from 'lucide-react';
 import { Tip, TipStatus, TipCategory } from '../types';
 
 interface TipCardProps {
@@ -18,21 +18,39 @@ export const TipCard: React.FC<TipCardProps> = ({ tip, isAdmin, onSettle, onDele
   const [hasVoted, setHasVoted] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
 
-  const getStatusColor = (status: TipStatus) => {
+  const getStatusStyles = (status: TipStatus) => {
     switch (status) {
-      case TipStatus.WON: return 'from-green-900/40 to-slate-900 border-brazil-green';
-      case TipStatus.LOST: return 'from-red-900/40 to-slate-900 border-red-500';
-      case TipStatus.VOID: return 'from-yellow-900/40 to-slate-900 border-yellow-500';
-      default: return 'from-slate-800 to-slate-900 border-slate-700'; // Pending
+      case TipStatus.WON: return { 
+          border: 'border-brazil-green/50', 
+          bg: 'bg-gradient-to-br from-green-950/40 via-slate-900 to-slate-900', 
+          shadow: 'shadow-[0_0_20px_rgba(34,197,94,0.1)]' 
+      };
+      case TipStatus.LOST: return { 
+          border: 'border-red-500/40', 
+          bg: 'bg-gradient-to-br from-red-950/40 via-slate-900 to-slate-900',
+          shadow: 'shadow-none'
+      };
+      case TipStatus.VOID: return { 
+          border: 'border-yellow-500/40', 
+          bg: 'bg-gradient-to-br from-yellow-950/40 via-slate-900 to-slate-900',
+          shadow: 'shadow-none'
+      };
+      default: return { 
+          border: 'border-white/10', 
+          bg: 'glass-panel bg-slate-900/60',
+          shadow: 'hover:shadow-xl hover:border-white/20'
+      };
     }
   };
 
+  const styles = getStatusStyles(tip.status);
+
   const getStatusBadge = (status: TipStatus) => {
     switch (status) {
-      case TipStatus.WON: return <div className="bg-green-500 text-white px-2 py-0.5 rounded text-[10px] font-black uppercase flex items-center shadow-[0_0_10px_rgba(34,197,94,0.4)]"><CheckCircle2 size={10} className="mr-1"/> WON</div>;
-      case TipStatus.LOST: return <div className="bg-red-500 text-white px-2 py-0.5 rounded text-[10px] font-black uppercase flex items-center"><XCircle size={10} className="mr-1"/> LOST</div>;
-      case TipStatus.VOID: return <div className="bg-yellow-500 text-black px-2 py-0.5 rounded text-[10px] font-black uppercase flex items-center"><MinusCircle size={10} className="mr-1"/> VOID</div>;
-      default: return <div className="bg-slate-700 text-slate-300 px-2 py-0.5 rounded text-[10px] font-black uppercase flex items-center animate-pulse"><Clock size={10} className="mr-1"/> LIVE</div>;
+      case TipStatus.WON: return <div className="bg-green-500 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase flex items-center shadow-lg shadow-green-500/40 tracking-wider"><CheckCircle2 size={12} className="mr-1.5"/> WON</div>;
+      case TipStatus.LOST: return <div className="bg-red-500 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase flex items-center shadow-lg shadow-red-500/40 tracking-wider"><XCircle size={12} className="mr-1.5"/> LOST</div>;
+      case TipStatus.VOID: return <div className="bg-yellow-500 text-black px-3 py-1 rounded-full text-[10px] font-black uppercase flex items-center shadow-lg shadow-yellow-500/40 tracking-wider"><MinusCircle size={12} className="mr-1.5"/> VOID</div>;
+      default: return <div className="bg-blue-600/20 text-blue-400 border border-blue-500/30 px-3 py-1 rounded-full text-[10px] font-black uppercase flex items-center animate-pulse tracking-wider"><Clock size={12} className="mr-1.5"/> LIVE</div>;
     }
   };
 
@@ -50,70 +68,58 @@ export const TipCard: React.FC<TipCardProps> = ({ tip, isAdmin, onSettle, onDele
       }
   };
 
-  const handleShare = async () => {
-     if (navigator.share) {
-         try {
-             await navigator.share({
-                 title: 'Jirvinho Tip',
-                 text: `Check out this tip: ${tip.teams} - ${tip.prediction} @ ${tip.odds}`,
-             });
-         } catch (err) {}
-     }
-  };
-
   const totalVotes = tip.votes.agree + tip.votes.disagree;
   const agreePercent = totalVotes > 0 ? Math.round((tip.votes.agree / totalVotes) * 100) : 0;
   const isMulti = tip.legs && tip.legs.length > 0;
 
   return (
-    <div className={`relative rounded-3xl overflow-hidden border bg-gradient-to-br shadow-xl mb-6 ${getStatusColor(tip.status)}`}>
+    <div className={`relative rounded-[2rem] overflow-hidden border transition-all duration-300 group ${styles.bg} ${styles.border} ${styles.shadow}`}>
       
-      {/* TICKET HEADER */}
-      <div className="px-5 py-4 flex justify-between items-start bg-black/20 backdrop-blur-sm border-b border-white/5">
-         <div className="flex items-center gap-2">
-             <div className="bg-slate-800 p-1.5 rounded-lg border border-slate-700">
-                {isMulti ? <List size={16} className="text-brazil-yellow"/> : <div className="w-4 h-4 rounded-full bg-brazil-green/20 border border-brazil-green flex items-center justify-center"><div className="w-1.5 h-1.5 rounded-full bg-brazil-green"></div></div>}
+      {/* CARD HEADER */}
+      <div className="px-6 py-5 flex justify-between items-center border-b border-white/5 bg-white/[0.02]">
+         <div className="flex items-center gap-3">
+             <div className="bg-slate-800/80 p-2 rounded-xl border border-white/5 backdrop-blur-sm">
+                {isMulti ? <List size={18} className="text-brazil-yellow"/> : <ShieldCheck size={18} className="text-brazil-green"/>}
              </div>
              <div>
-                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">{tip.league}</h3>
-                 <p className="text-[10px] text-slate-500 flex items-center">
-                    <Clock size={10} className="mr-1"/> {new Date(tip.kickoffTime).toLocaleString(undefined, {weekday:'short', hour:'2-digit', minute:'2-digit'})}
+                 <h3 className="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">{tip.league}</h3>
+                 <p className="text-[10px] text-slate-500 font-bold flex items-center mt-0.5">
+                    {new Date(tip.kickoffTime).toLocaleString(undefined, {weekday:'short', hour:'2-digit', minute:'2-digit'})}
                  </p>
              </div>
          </div>
          <div className="flex flex-col items-end gap-1">
              {getStatusBadge(tip.status)}
-             <button onClick={handleShare} className="text-slate-500 hover:text-white transition-colors"><Share2 size={14}/></button>
          </div>
       </div>
 
-      {/* TICKET BODY */}
-      <div className="p-5 relative">
+      {/* CARD BODY */}
+      <div className="p-6 relative">
          {/* Teams */}
-         <div className="mb-4">
+         <div className="mb-6">
             {isMulti ? (
                  <div className="space-y-3">
                      {tip.legs?.map((leg, idx) => (
-                         <div key={idx} className="flex justify-between items-center text-sm border-b border-white/5 pb-2 last:border-0 last:pb-0">
-                             <span className="font-medium text-white">{leg.teams}</span>
-                             <span className="font-bold text-brazil-yellow text-xs bg-yellow-900/10 px-2 py-0.5 rounded border border-yellow-900/30">{leg.prediction}</span>
+                         <div key={idx} className="flex justify-between items-center text-sm border-b border-dashed border-white/5 pb-2 last:border-0 last:pb-0">
+                             <span className="font-semibold text-slate-200">{leg.teams}</span>
+                             <span className="font-bold text-brazil-yellow text-xs bg-yellow-500/10 px-2 py-1 rounded border border-yellow-500/20">{leg.prediction}</span>
                          </div>
                      ))}
                  </div>
             ) : (
-                <h2 className="text-xl md:text-2xl font-black text-white leading-tight tracking-tight mb-1">{tip.teams}</h2>
+                <h2 className="text-xl md:text-2xl font-black text-white leading-tight tracking-tight mb-2 group-hover:text-brazil-green transition-colors">{tip.teams}</h2>
             )}
          </div>
 
-         {/* Selection & Odds */}
-         <div className="bg-slate-950/40 rounded-xl p-3 border border-white/5 flex items-center justify-between mb-4">
-             <div>
-                 <p className="text-[10px] text-slate-400 uppercase font-bold mb-0.5">Selection</p>
-                 <p className="text-lg font-bold text-brazil-yellow">{tip.prediction}</p>
+         {/* Selection & Odds Block */}
+         <div className="bg-black/30 rounded-2xl p-1 border border-white/5 flex items-center justify-between mb-5 shadow-inner">
+             <div className="flex-1 px-4 py-3 border-r border-white/5">
+                 <p className="text-[10px] text-slate-500 uppercase font-black tracking-wider mb-1">Pick</p>
+                 <p className="text-base font-bold text-white">{tip.prediction}</p>
              </div>
-             <div className="text-right">
-                 <p className="text-[10px] text-slate-400 uppercase font-bold mb-0.5">Odds</p>
-                 <div className="text-2xl font-black text-white tracking-tighter bg-clip-text text-transparent bg-gradient-to-b from-white to-slate-400">
+             <div className="px-6 py-3 bg-white/5 rounded-xl m-1 text-center min-w-[80px]">
+                 <p className="text-[10px] text-slate-500 uppercase font-black tracking-wider mb-1">Odds</p>
+                 <div className="text-2xl font-black text-brazil-yellow tracking-tighter drop-shadow-sm font-mono">
                     {tip.odds.toFixed(2)}
                  </div>
              </div>
@@ -121,9 +127,9 @@ export const TipCard: React.FC<TipCardProps> = ({ tip, isAdmin, onSettle, onDele
 
          {/* Analysis */}
          {tip.analysis && (
-             <div className="flex gap-2 mb-4">
-                 <div className="w-1 bg-brazil-blue rounded-full opacity-50"></div>
-                 <p className="text-xs text-slate-300 italic leading-relaxed opacity-80">"{tip.analysis}"</p>
+             <div className="flex gap-3 mb-5 bg-blue-900/10 p-3 rounded-xl border border-blue-500/10">
+                 <div className="w-1 bg-brazil-blue rounded-full"></div>
+                 <p className="text-xs text-blue-200/80 leading-relaxed italic">"{tip.analysis}"</p>
              </div>
          )}
          
@@ -131,40 +137,40 @@ export const TipCard: React.FC<TipCardProps> = ({ tip, isAdmin, onSettle, onDele
          {tip.bettingCode && (
              <button 
                 onClick={handleCopyCode}
-                className="w-full flex items-center justify-between bg-slate-800/50 hover:bg-slate-800 border border-dashed border-slate-600 rounded-lg px-4 py-2 group transition-all"
+                className="w-full flex items-center justify-between bg-slate-800/30 hover:bg-brazil-green/10 border border-dashed border-slate-700 hover:border-brazil-green/50 rounded-xl px-4 py-3 group/btn transition-all duration-300"
              >
-                 <span className="text-xs font-mono text-slate-400 tracking-widest">{tip.bettingCode}</span>
-                 <span className="text-xs font-bold text-brazil-green flex items-center">
-                    {copied ? <Check size={12} className="mr-1"/> : <Copy size={12} className="mr-1 group-hover:scale-110 transition-transform"/>} 
-                    {copied ? 'COPIED' : 'COPY'}
+                 <span className="text-xs font-mono font-bold text-slate-400 group-hover/btn:text-white tracking-[0.2em]">{tip.bettingCode}</span>
+                 <span className="text-[10px] font-bold text-brazil-green flex items-center bg-green-500/10 px-2 py-1 rounded">
+                    {copied ? <Check size={12} className="mr-1"/> : <Copy size={12} className="mr-1"/>} 
+                    {copied ? 'COPIED' : 'COPY CODE'}
                  </span>
              </button>
          )}
       </div>
 
-      {/* TICKET FOOTER (Actions) */}
-      <div className="bg-black/20 px-5 py-3 border-t border-white/5 flex items-center justify-between">
+      {/* FOOTER */}
+      <div className="px-6 py-4 border-t border-white/5 bg-black/20 flex items-center justify-between min-h-[60px]">
           
           {/* Voting */}
           {tip.status === TipStatus.PENDING && (
               <div className="flex items-center gap-3 w-full">
                   {!isAdmin && !hasVoted ? (
                       <div className="flex gap-2 w-full">
-                          <button onClick={() => handleVote('agree')} className="flex-1 bg-slate-800 hover:bg-green-900/30 border border-slate-700 hover:border-green-500/50 rounded-lg py-1.5 flex items-center justify-center text-xs font-bold text-slate-300 transition-all">
-                              <ThumbsUp size={12} className="mr-1.5"/> Agree
+                          <button onClick={() => handleVote('agree')} className="flex-1 bg-slate-800 hover:bg-green-600 border border-white/5 hover:border-green-400 rounded-lg py-2 flex items-center justify-center text-xs font-bold text-slate-300 hover:text-white transition-all group/vote">
+                              <ThumbsUp size={14} className="mr-1.5 group-hover/vote:scale-110 transition-transform"/> Agree
                           </button>
-                          <button onClick={() => handleVote('disagree')} className="flex-1 bg-slate-800 hover:bg-red-900/30 border border-slate-700 hover:border-red-500/50 rounded-lg py-1.5 flex items-center justify-center text-xs font-bold text-slate-300 transition-all">
-                              <ThumbsDown size={12} className="mr-1.5"/> Disagree
+                          <button onClick={() => handleVote('disagree')} className="flex-1 bg-slate-800 hover:bg-red-600 border border-white/5 hover:border-red-400 rounded-lg py-2 flex items-center justify-center text-xs font-bold text-slate-300 hover:text-white transition-all group/vote">
+                              <ThumbsDown size={14} className="mr-1.5 group-hover/vote:scale-110 transition-transform"/> Disagree
                           </button>
                       </div>
                   ) : (
                       <div className="w-full">
-                           <div className="flex justify-between text-[10px] font-bold text-slate-400 mb-1">
+                           <div className="flex justify-between text-[10px] font-bold text-slate-400 mb-1.5 uppercase tracking-wide">
                                <span>Community Confidence</span>
                                <span className={agreePercent > 70 ? 'text-brazil-green' : 'text-white'}>{agreePercent}%</span>
                            </div>
-                           <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
-                               <div className="h-full bg-gradient-to-r from-brazil-green to-green-400" style={{width: `${agreePercent}%`}}></div>
+                           <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden p-[1px]">
+                               <div className="h-full rounded-full bg-gradient-to-r from-brazil-green to-emerald-400 shadow-[0_0_10px_rgba(34,197,94,0.5)]" style={{width: `${agreePercent}%`}}></div>
                            </div>
                       </div>
                   )}
@@ -174,68 +180,34 @@ export const TipCard: React.FC<TipCardProps> = ({ tip, isAdmin, onSettle, onDele
           {/* Result Score */}
           {tip.status !== TipStatus.PENDING && (
               <div className="w-full flex justify-between items-center">
-                   <span className="text-xs text-slate-500 font-medium">Final Result</span>
-                   <span className="text-lg font-mono font-bold text-white tracking-widest">{tip.resultScore || '-'}</span>
+                   <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Final Result</span>
+                   <span className="text-xl font-mono font-black text-white tracking-widest drop-shadow-md">{tip.resultScore || '-'}</span>
               </div>
           )}
       </div>
 
-      {/* Admin Quick Actions Overlay */}
+      {/* Admin Quick Actions */}
       {isAdmin && (
-        <div className="absolute top-2 right-2 flex flex-col gap-1 p-2 bg-slate-900/90 rounded-xl border border-slate-700 z-10 shadow-lg">
+        <div className="absolute top-3 right-3 flex flex-col gap-1.5 p-2 bg-slate-950/90 backdrop-blur-md rounded-2xl border border-white/10 z-20 shadow-xl opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0">
            {onEdit && (
-             <button 
-               onClick={(e) => { e.stopPropagation(); onEdit(tip); }} 
-               className="p-1.5 bg-slate-700 text-white rounded hover:bg-slate-600 transition-colors"
-               type="button"
-               title="Edit details"
-             >
+             <button onClick={(e) => { e.stopPropagation(); onEdit(tip); }} className="p-2 bg-slate-800 text-white rounded-xl hover:bg-slate-700 hover:scale-110 transition-all">
                <Edit3 size={14}/>
              </button>
            )}
-           <button 
-             onClick={(e) => { e.stopPropagation(); onDelete && onDelete(tip.id); }} 
-             className="p-1.5 bg-red-500/20 text-red-500 rounded hover:bg-red-500 hover:text-white transition-colors"
-             type="button"
-             title="Delete tip"
-           >
+           <button onClick={(e) => { e.stopPropagation(); onDelete && onDelete(tip.id); }} className="p-2 bg-red-500/10 text-red-500 rounded-xl hover:bg-red-500 hover:text-white hover:scale-110 transition-all">
              <XCircle size={14}/>
            </button>
            
            {onSettle && (
                <>
-                <button 
-                  onClick={(e) => { 
-                      e.stopPropagation(); 
-                      // Pass empty score to trigger prompt in App.tsx
-                      onSettle(tip.id, TipStatus.WON, ''); 
-                  }} 
-                  className={`p-1.5 rounded transition-colors ${tip.status === TipStatus.WON ? 'bg-green-500 text-white' : 'bg-green-500/20 text-green-500 hover:bg-green-500 hover:text-white'}`}
-                  type="button"
-                  title="Mark as WON & Set Score"
-                >
+                <button onClick={(e) => { e.stopPropagation(); onSettle(tip.id, TipStatus.WON, ''); }} className={`p-2 rounded-xl transition-all hover:scale-110 ${tip.status === TipStatus.WON ? 'bg-green-500 text-white' : 'bg-green-500/10 text-green-500 hover:bg-green-500 hover:text-white'}`}>
                   <Check size={14}/>
                 </button>
-                <button 
-                  onClick={(e) => { 
-                      e.stopPropagation(); 
-                      // Pass empty score to trigger prompt in App.tsx
-                      onSettle(tip.id, TipStatus.LOST, ''); 
-                  }} 
-                  className={`p-1.5 rounded transition-colors ${tip.status === TipStatus.LOST ? 'bg-red-500 text-white' : 'bg-red-500/20 text-red-500 hover:bg-red-500 hover:text-white'}`}
-                  type="button"
-                  title="Mark as LOST & Set Score"
-                >
+                <button onClick={(e) => { e.stopPropagation(); onSettle(tip.id, TipStatus.LOST, ''); }} className={`p-2 rounded-xl transition-all hover:scale-110 ${tip.status === TipStatus.LOST ? 'bg-red-500 text-white' : 'bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white'}`}>
                   <XCircle size={14}/>
                 </button>
-                {/* Only show Verify for Pending items to save API calls, or let it stay for corrections */}
                 {tip.status === TipStatus.PENDING && onVerify && (
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); onVerify(tip); }} 
-                    className="p-1.5 bg-blue-500/20 text-blue-500 rounded hover:bg-blue-500 hover:text-white transition-colors"
-                    type="button"
-                    title="Verify with AI"
-                  >
+                  <button onClick={(e) => { e.stopPropagation(); onVerify(tip); }} className="p-2 bg-blue-500/10 text-blue-500 rounded-xl hover:bg-blue-500 hover:text-white hover:scale-110 transition-all">
                     <Wand2 size={14}/>
                   </button>
                 )}
@@ -243,7 +215,6 @@ export const TipCard: React.FC<TipCardProps> = ({ tip, isAdmin, onSettle, onDele
            )}
         </div>
       )}
-
     </div>
   );
 };

@@ -1,5 +1,4 @@
 
-
 import { supabase } from './supabaseClient';
 import { Tip, TipStatus, NewsPost, User, UserRole, MaestroStats, TipCategory, Message, Slide } from '../types';
 
@@ -12,19 +11,7 @@ class DBService {
     return supabase.auth.onAuthStateChange(async (event, session) => {
       
       if (session?.user) {
-        // OPTIMISTIC UPDATE: Send basic user info immediately
-        // allowing app to render dashboard while fetching role
-        // This makes the app feel INSTANT on mobile.
-        const basicUser: User = {
-            uid: session.user.id,
-            email: session.user.email!,
-            role: UserRole.USER, // Default to USER temporarily
-            displayName: session.user.user_metadata.displayName || 'User'
-        };
-        // Trigger callback immediately
-        callback(basicUser);
-
-        // Fetch profile to get actual role (Async)
+        // Fetch profile to get actual role
         const { data: profile } = await supabase
           .from('profiles')
           .select('*')
@@ -41,17 +28,14 @@ class DBService {
             role = UserRole.ADMIN;
         }
 
-        const fullUser: User = {
+        const user: User = {
           uid: session.user.id,
           email: session.user.email!,
           role: role,
           displayName: profile?.display_name || session.user.user_metadata.displayName || 'User'
         };
 
-        // Only trigger update if role is different (e.g. Admin) or profile name differs
-        if (fullUser.role !== basicUser.role || fullUser.displayName !== basicUser.displayName) {
-             callback(fullUser);
-        }
+        callback(user);
 
       } else {
         callback(null);
