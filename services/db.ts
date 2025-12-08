@@ -11,31 +11,46 @@ class DBService {
     return supabase.auth.onAuthStateChange(async (event, session) => {
       
       if (session?.user) {
-        // Fetch profile to get actual role
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single();
-
-        // HARDCODED ADMIN OVERRIDE FOR OWNER
-        // Critical Fix: Sync this to DB so RLS policies work
-        const isAdminEmail = session.user.email === 'admin@jirvinho.com';
-        let role = (profile?.role as UserRole) || UserRole.USER;
-
-        if (isAdminEmail && role !== UserRole.ADMIN) {
-            await supabase.from('profiles').update({ role: 'ADMIN' }).eq('id', session.user.id);
-            role = UserRole.ADMIN;
-        }
-
-        const user: User = {
+        // OPTIMISTIC UPDATE: 
+        // Immediately callback with session data to unblock the UI (skip waiting for profile fetch)
+        const optimisticUser: User = {
           uid: session.user.id,
           email: session.user.email!,
-          role: role,
-          displayName: profile?.display_name || session.user.user_metadata.displayName || 'User'
+          role: UserRole.USER, // Default to USER temporarily
+          displayName: session.user.user_metadata.displayName || 'User'
         };
+        callback(optimisticUser);
 
-        callback(user);
+        // Fetch profile to get authoritative role
+        try {
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', session.user.id)
+              .single();
+
+            // HARDCODED ADMIN OVERRIDE FOR OWNER
+            // Critical Fix: Sync this to DB so RLS policies work
+            const isAdminEmail = session.user.email === 'admin@jirvinho.com';
+            let role = (profile?.role as UserRole) || UserRole.USER;
+
+            if (isAdminEmail && role !== UserRole.ADMIN) {
+                await supabase.from('profiles').update({ role: 'ADMIN' }).eq('id', session.user.id);
+                role = UserRole.ADMIN;
+            }
+
+            const finalUser: User = {
+              uid: session.user.id,
+              email: session.user.email!,
+              role: role,
+              displayName: profile?.display_name || session.user.user_metadata.displayName || 'User'
+            };
+
+            callback(finalUser);
+        } catch (e) {
+            console.error("Profile fetch error", e);
+            // Maintain optimistic user state if profile fetch fails
+        }
 
       } else {
         callback(null);
@@ -440,3 +455,4 @@ class DBService {
 }
 
 export const dbService = new DBService();
+    
