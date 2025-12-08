@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { User, UserRole, Tip, NewsPost, MaestroStats, TipStatus, TipCategory, TipLeg, Message, Slide } from './types';
 import { dbService } from './services/db';
@@ -143,18 +144,31 @@ export const App: React.FC = () => {
   useEffect(() => {
     let mounted = true;
 
+    // PERFORMANCE: Fallback timer to force UI to render if Auth check hangs.
+    // This ensures users on slow connections see the login form quickly (within 800ms)
+    // instead of staring at a blank screen/logo.
+    const initTimer = setTimeout(() => {
+        if (mounted && isInitializing) {
+            setIsInitializing(false);
+        }
+    }, 800);
+
     // Subscribe to auth changes
     const { data: authListener } = dbService.onAuthStateChange(async (u) => {
         if (!mounted) return;
         
+        // If auth responds, clear the fallback timer
+        clearTimeout(initTimer);
+
         // Deep comparison to prevent loop if object reference changes but content is same
         setUser(prev => {
             if (JSON.stringify(prev) === JSON.stringify(u)) return prev;
             return u;
         });
         
+        // Removed await to prevent blocking the UI initialization. Data will populate when ready.
         if (u) {
-             await fetchData(u);
+             fetchData(u);
         } else {
              setTips([]); setNews([]); setSlides([]); setStats({winRate:0, totalTips:0, wonTips:0, streak:[]});
         }
@@ -163,6 +177,7 @@ export const App: React.FC = () => {
 
     return () => {
         mounted = false;
+        clearTimeout(initTimer);
         if (authListener?.subscription) authListener.subscription.unsubscribe();
     };
   }, [fetchData]); // Only depends on stable fetchData
