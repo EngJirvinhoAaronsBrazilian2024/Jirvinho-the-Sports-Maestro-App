@@ -66,7 +66,7 @@ export const App: React.FC = () => {
   // Auth State
   const [isInitializing, setIsInitializing] = useState(true);
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(false);
+  // Removed loading state to eliminate spinners and improve perceived speed
   const [authMode, setAuthMode] = useState<'login' | 'signup' | 'forgot'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -155,8 +155,6 @@ export const App: React.FC = () => {
         
         if (u) {
              await fetchData(u);
-             // Ensure loading is turned off once we have a user
-             setLoading(false);
         } else {
              setTips([]); setNews([]); setSlides([]); setStats({winRate:0, totalTips:0, wonTips:0, streak:[]});
         }
@@ -172,10 +170,10 @@ export const App: React.FC = () => {
   // --- Polling ---
   useEffect(() => {
       if (!user) return;
-      // Faster polling for quick message updates (2 seconds)
+      // High-frequency polling (800ms) for fast messaging updates on mobile
       const interval = setInterval(() => {
           fetchData(user);
-      }, 2000);
+      }, 800);
       return () => clearInterval(interval);
   }, [user, fetchData]);
 
@@ -184,8 +182,7 @@ export const App: React.FC = () => {
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Do not block UI with loading check to make it feel faster
-    setLoading(true);
+    // Do not show spinners - instant interaction
     setAuthError('');
     try {
       if (authMode === 'login') {
@@ -196,30 +193,28 @@ export const App: React.FC = () => {
           // Check if session was created
           const u = await dbService.getCurrentUser();
           if (!u) {
-             // If signup was successful but no session, it might be auto-confirm off.
-             // However, to ensure smooth UX, try logging in immediately.
+             // If signup was successful but no session, try logging in immediately.
+             // This handles cases where confirmation might be pending but we want to try entry anyway.
              try {
                 await dbService.login(email, password);
              } catch (loginErr) {
-                 setAuthError('Account created! Please check email for confirmation.');
+                 setAuthError('Account created! Please check email.');
                  setAuthMode('login');
-                 setLoading(false);
              }
           }
         } catch (signUpError: any) {
            const errStr = (signUpError.message || '').toLowerCase();
-           // If user already exists, try logging in automatically to "confirm" them into the app
+           // Automatically confirm/login if user already exists
            if (errStr.includes('already registered') || errStr.includes('unique constraint') || errStr.includes('already exists')) {
               try {
                   await dbService.login(email, password);
               } catch (loginErr: any) {
-                  // If login fails after signup collision, show specific error
-                  if (loginErr.message?.includes('Invalid login credentials')) {
+                  // If login fails after signup collision, check specific error
+                  if (loginErr.message?.toLowerCase().includes('invalid login credentials')) {
                       setAuthError('Account exists. Incorrect password.');
                   } else {
                       setAuthError(loginErr.message || "Login failed.");
                   }
-                  setLoading(false);
               }
            } else {
               throw signUpError;
@@ -229,11 +224,9 @@ export const App: React.FC = () => {
         await dbService.resetPassword(email);
         alert('Password reset link sent!');
         setAuthMode('login');
-        setLoading(false);
       }
     } catch (err: any) {
       setAuthError(err.message || "Authentication failed");
-      setLoading(false);
     }
   };
 
@@ -299,7 +292,10 @@ export const App: React.FC = () => {
             teams: '', league: LEAGUES[0], prediction: '', odds: 1.50, confidence: 'Medium', sport: 'Football', bettingCode: '', legs: [], kickoffTime: '', analysis: ''
           });
           if (user) await fetchData(user);
-          alert(editingTipId ? "Tip Updated!" : "Tip Added Successfully!");
+          if (!editingTipId) {
+             // Optional: Show brief success feedback without blocking
+             // toast.success("Tip Added!"); 
+          }
       } catch (e: any) {
           console.error("Save Error:", e);
           alert("Error saving tip: " + (e.message || "Unknown Error. Check permissions."));
@@ -382,7 +378,6 @@ export const App: React.FC = () => {
         
         setNewNews({ title: '', category: 'Football', source: '', body: '', imageUrl: '', videoUrl: '', matchDate: '' });
         if (user) await fetchData(user);
-        alert(editingNewsId ? "News Updated!" : "News Posted!");
       } catch (e: any) {
           alert("Error: " + e.message);
       } finally {
@@ -423,7 +418,6 @@ export const App: React.FC = () => {
         
         setNewSlide({ title: '', subtitle: '', image: '' });
         if (user) await fetchData(user);
-        alert(editingSlideId ? "Slide Updated!" : "Slide Added!");
       } catch (e: any) {
           alert("Error: " + e.message);
       } finally {
@@ -475,10 +469,9 @@ export const App: React.FC = () => {
 
       try {
         await dbService.sendMessage(user.uid, user.displayName || 'User', msgContent);
-        // Silent background sync
+        // Instant sync
         await fetchData(user);
       } catch (e: any) {
-          // alert("Failed to send: " + e.message); // Removed alert for speed feeling
           console.error(e);
           setMessages(prev => prev.filter(m => m.id !== tempId));
       }
@@ -594,7 +587,7 @@ export const App: React.FC = () => {
 
              <button 
                 type="submit" 
-                // Removed disabled={loading} to improve perceived speed
+                // Removed all blocking/loading states
                 className="w-full bg-gradient-to-r from-brazil-green to-green-600 hover:from-green-500 hover:to-green-600 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-green-900/30 transition-all active:scale-[0.98] flex items-center justify-center"
              >
                 {authMode === 'login' ? 'Sign In' : 
@@ -965,7 +958,7 @@ export const App: React.FC = () => {
                                   />
                                   <button 
                                     onClick={handleGenerateAnalysis}
-                                    disabled={isGeneratingAI}
+                                    // Removed blocking logic for fast feel
                                     className="absolute bottom-3 right-3 bg-brazil-blue/20 hover:bg-brazil-blue text-blue-400 hover:text-white p-2 rounded-lg transition-all"
                                     title="Generate AI Analysis"
                                   >
@@ -989,7 +982,7 @@ export const App: React.FC = () => {
                                   {editingTipId && (
                                       <button onClick={() => {setEditingTipId(null); setNewTip({category: TipCategory.SINGLE, teams: '', league: LEAGUES[0], prediction: '', odds: 1.50, confidence: 'Medium', sport: 'Football', bettingCode: '', legs: [], kickoffTime: '', analysis: ''});}} className="flex-1 bg-slate-700 text-white py-3 rounded-xl font-bold">Cancel</button>
                                   )}
-                                  <button onClick={handleSaveTip} disabled={isSaving} className="flex-1 bg-brazil-green hover:bg-green-600 text-white py-3 rounded-xl font-bold shadow-lg shadow-green-900/20 transition-all flex items-center justify-center">
+                                  <button onClick={handleSaveTip} className="flex-1 bg-brazil-green hover:bg-green-600 text-white py-3 rounded-xl font-bold shadow-lg shadow-green-900/20 transition-all flex items-center justify-center">
                                       {editingTipId ? 'Update Tip' : 'Post Tip'}
                                   </button>
                               </div>
@@ -1068,7 +1061,7 @@ export const App: React.FC = () => {
                         {editingNewsId && (
                             <button onClick={() => { setEditingNewsId(null); setNewNews({ title: '', category: 'Football', source: '', body: '', imageUrl: '', videoUrl: '', matchDate: '' }); }} className="flex-1 bg-slate-700 text-white py-3 rounded-xl font-bold">Cancel</button>
                         )}
-                        <button onClick={handleSaveNews} disabled={isSaving} className="flex-1 bg-brazil-green text-white py-3 rounded-xl font-bold flex items-center justify-center">
+                        <button onClick={handleSaveNews} className="flex-1 bg-brazil-green text-white py-3 rounded-xl font-bold flex items-center justify-center">
                             {editingNewsId ? 'Update News' : 'Publish News'}
                         </button>
                       </div>
@@ -1132,7 +1125,7 @@ export const App: React.FC = () => {
                                     {editingSlideId && (
                                         <button onClick={() => { setEditingSlideId(null); setNewSlide({ title: '', subtitle: '', image: '' }); }} className="flex-1 bg-slate-700 text-white py-3 rounded-xl font-bold">Cancel</button>
                                     )}
-                                    <button onClick={handleSaveSlide} disabled={isSaving} className="flex-1 bg-brazil-green text-white py-3 rounded-xl font-bold flex items-center justify-center">
+                                    <button onClick={handleSaveSlide} className="flex-1 bg-brazil-green text-white py-3 rounded-xl font-bold flex items-center justify-center">
                                       {editingSlideId ? 'Update' : 'Add'}
                                     </button>
                                   </div>
