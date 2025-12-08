@@ -181,7 +181,10 @@ export const App: React.FC = () => {
   // --- Auto Scroll for Chat ---
   useEffect(() => {
       if (activeTab === 'contact' || (activeTab === 'admin' && adminTab === 'messages')) {
-          messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+          // Add a small delay to ensure DOM is ready
+          setTimeout(() => {
+              messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+          }, 100);
       }
   }, [messages, activeTab, adminTab]);
 
@@ -810,18 +813,19 @@ export const App: React.FC = () => {
 
         {/* --- CONTACT / CHAT TAB --- */}
         {activeTab === 'contact' && (
-            <div className="animate-in fade-in slide-in-from-bottom-8 duration-700 h-[85vh] md:h-[calc(100vh-140px)] flex flex-col pb-20 md:pb-0">
-                 <div className="flex-1 glass-panel rounded-[2.5rem] overflow-hidden flex flex-col relative shadow-2xl">
+            // FIX: Using fixed positioning on mobile to ensure full viewport height usage without getting hidden by nav
+            <div className="fixed inset-x-0 top-20 bottom-24 md:static md:h-[calc(100vh-140px)] flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500 z-30">
+                 <div className="flex-1 glass-panel md:rounded-[2.5rem] overflow-hidden flex flex-col relative shadow-2xl h-full border-x-0 md:border-x border-y-0 md:border-y border-white/10">
                      {/* Chat Header */}
-                     <div className="p-6 bg-slate-900/50 border-b border-white/5 flex items-center justify-between backdrop-blur-md">
-                         <h2 className="text-xl font-black italic text-white flex items-center gap-3">
+                     <div className="p-4 md:p-6 bg-slate-900/50 border-b border-white/5 flex items-center justify-between backdrop-blur-md shrink-0">
+                         <h2 className="text-lg md:text-xl font-black italic text-white flex items-center gap-3">
                             <MessageSquare className="text-brazil-green" size={24}/> 
                             {user.role === UserRole.ADMIN ? 'USER MESSAGES' : 'ASK THE MAESTRO'}
                          </h2>
                      </div>
                      
                      {/* Chat Messages Area */}
-                     <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                     <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 bg-slate-950/30">
                          {messages.length === 0 ? (
                              <div className="h-full flex flex-col items-center justify-center text-slate-600 opacity-50">
                                  <MessageSquare size={64} className="mb-4"/>
@@ -849,13 +853,15 @@ export const App: React.FC = () => {
                                          )}
                                      </div>
                                      
-                                     {/* Admin Reply Display */}
+                                     {/* Admin Reply Display - IMPROVED VISIBILITY */}
                                      {msg.reply && (
-                                         <div className="mt-2 ml-4 max-w-[85%] bg-blue-900/20 border border-blue-500/20 p-4 rounded-3xl rounded-tl-none text-slate-300 text-sm flex gap-3">
-                                             <div className="w-1 bg-blue-500 rounded-full shrink-0"></div>
-                                             <div>
-                                                 <span className="text-[10px] text-blue-400 font-bold uppercase block mb-1 tracking-wider">Jirvinho Reply</span>
-                                                 {msg.reply}
+                                         <div className="mt-2 ml-4 max-w-[85%] bg-gradient-to-r from-blue-900/40 to-slate-900/40 border border-blue-500/30 p-4 rounded-3xl rounded-tl-none text-slate-200 text-sm flex gap-3 shadow-lg">
+                                             <div className="w-1 bg-blue-500 rounded-full shrink-0 shadow-[0_0_10px_#3b82f6]"></div>
+                                             <div className="w-full">
+                                                 <span className="text-[10px] text-blue-400 font-bold uppercase block mb-1 tracking-wider flex items-center gap-1">
+                                                     <Sparkles size={10} /> Jirvinho Reply
+                                                 </span>
+                                                 <p className="leading-relaxed font-medium">{msg.reply}</p>
                                              </div>
                                          </div>
                                      )}
@@ -881,12 +887,12 @@ export const App: React.FC = () => {
                                  </div>
                              ))
                          )}
-                         <div ref={messagesEndRef} />
+                         <div ref={messagesEndRef} className="h-4" />
                      </div>
 
                      {/* Chat Input (User Only) */}
                      {user.role !== UserRole.ADMIN && (
-                         <div className="p-6 bg-slate-900/50 border-t border-white/5 backdrop-blur-md">
+                         <div className="p-4 md:p-6 bg-slate-900/80 border-t border-white/5 backdrop-blur-md shrink-0">
                              <div className="flex gap-3">
                                  <input 
                                     type="text"
