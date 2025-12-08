@@ -276,7 +276,15 @@ export const App: React.FC = () => {
   };
 
   const handleSettleTip = async (id: string, status: TipStatus, score: string) => {
-      await dbService.settleTip(id, status, score);
+      // Prompt user for score if not provided or if default empty
+      let finalScore = score;
+      if (!finalScore || finalScore === '1-0' || finalScore === '0-1') {
+         const input = window.prompt(`Enter Final Score for this ${status} tip (e.g. 2-1):`, "");
+         if (input === null) return; // User cancelled
+         finalScore = input || (status === TipStatus.WON ? "Win" : "Loss");
+      }
+      
+      await dbService.settleTip(id, status, finalScore);
       if (user) fetchData(user);
   };
 

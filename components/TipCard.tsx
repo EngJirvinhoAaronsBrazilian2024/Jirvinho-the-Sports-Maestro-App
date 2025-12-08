@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Clock, CheckCircle2, XCircle, MinusCircle, ThumbsUp, ThumbsDown, Copy, Check, List, Share2, Wand2, ArrowRight, Edit3 } from 'lucide-react';
 import { Tip, TipStatus, TipCategory } from '../types';
@@ -187,6 +188,7 @@ export const TipCard: React.FC<TipCardProps> = ({ tip, isAdmin, onSettle, onDele
                onClick={(e) => { e.stopPropagation(); onEdit(tip); }} 
                className="p-1.5 bg-slate-700 text-white rounded hover:bg-slate-600 transition-colors"
                type="button"
+               title="Edit details"
              >
                <Edit3 size={14}/>
              </button>
@@ -195,31 +197,44 @@ export const TipCard: React.FC<TipCardProps> = ({ tip, isAdmin, onSettle, onDele
              onClick={(e) => { e.stopPropagation(); onDelete && onDelete(tip.id); }} 
              className="p-1.5 bg-red-500/20 text-red-500 rounded hover:bg-red-500 hover:text-white transition-colors"
              type="button"
+             title="Delete tip"
            >
              <XCircle size={14}/>
            </button>
            
-           {tip.status === TipStatus.PENDING && onSettle && (
+           {onSettle && (
                <>
                 <button 
-                  onClick={(e) => { e.stopPropagation(); onSettle(tip.id, TipStatus.WON, '1-0'); }} 
-                  className="p-1.5 bg-green-500/20 text-green-500 rounded hover:bg-green-500 hover:text-white transition-colors"
+                  onClick={(e) => { 
+                      e.stopPropagation(); 
+                      // Pass empty score to trigger prompt in App.tsx
+                      onSettle(tip.id, TipStatus.WON, ''); 
+                  }} 
+                  className={`p-1.5 rounded transition-colors ${tip.status === TipStatus.WON ? 'bg-green-500 text-white' : 'bg-green-500/20 text-green-500 hover:bg-green-500 hover:text-white'}`}
                   type="button"
+                  title="Mark as WON & Set Score"
                 >
                   <Check size={14}/>
                 </button>
                 <button 
-                  onClick={(e) => { e.stopPropagation(); onSettle(tip.id, TipStatus.LOST, '0-1'); }} 
-                  className="p-1.5 bg-red-500/20 text-red-500 rounded hover:bg-red-500 hover:text-white transition-colors"
+                  onClick={(e) => { 
+                      e.stopPropagation(); 
+                      // Pass empty score to trigger prompt in App.tsx
+                      onSettle(tip.id, TipStatus.LOST, ''); 
+                  }} 
+                  className={`p-1.5 rounded transition-colors ${tip.status === TipStatus.LOST ? 'bg-red-500 text-white' : 'bg-red-500/20 text-red-500 hover:bg-red-500 hover:text-white'}`}
                   type="button"
+                  title="Mark as LOST & Set Score"
                 >
                   <XCircle size={14}/>
                 </button>
-                {onVerify && (
+                {/* Only show Verify for Pending items to save API calls, or let it stay for corrections */}
+                {tip.status === TipStatus.PENDING && onVerify && (
                   <button 
                     onClick={(e) => { e.stopPropagation(); onVerify(tip); }} 
                     className="p-1.5 bg-blue-500/20 text-blue-500 rounded hover:bg-blue-500 hover:text-white transition-colors"
                     type="button"
+                    title="Verify with AI"
                   >
                     <Wand2 size={14}/>
                   </button>
