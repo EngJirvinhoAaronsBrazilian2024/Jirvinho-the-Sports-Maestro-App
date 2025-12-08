@@ -270,8 +270,19 @@ export const App: React.FC = () => {
   };
 
   const handleLogout = async () => {
-    await dbService.logout();
+    // Immediate local cleanup for instant UI feedback
+    setUser(null);
+    setTips([]);
+    setNews([]);
+    setMessages([]);
     setActiveTab('dashboard');
+    
+    // Attempt actual signout
+    try {
+        await dbService.logout();
+    } catch(e) {
+        console.error("Signout error:", e);
+    }
   };
 
   const handleVote = async (id: string, type: 'agree' | 'disagree') => {

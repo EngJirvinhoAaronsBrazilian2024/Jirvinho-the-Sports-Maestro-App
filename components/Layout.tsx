@@ -26,7 +26,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, active
     <div className="min-h-screen bg-[url('https://grainy-gradients.vercel.app/noise.svg')] bg-opacity-20 text-slate-100 font-sans selection:bg-brazil-green selection:text-white pb-24 md:pb-0">
       
       {/* --- DESKTOP & MOBILE TOP HEADER --- */}
-      <header className="fixed top-0 inset-x-0 z-40 glass-panel h-20 flex items-center justify-between px-4 md:px-8 shadow-2xl transition-all duration-300">
+      <header className="fixed top-0 inset-x-0 z-50 glass-panel h-20 flex items-center justify-between px-4 md:px-8 shadow-2xl transition-all duration-300">
         <div className="flex items-center gap-4 group cursor-pointer" onClick={() => setActiveTab('dashboard')}>
           <div className="relative">
             <div className="absolute inset-0 bg-brazil-green blur-lg opacity-40 group-hover:opacity-60 transition-opacity rounded-full"></div>
@@ -38,7 +38,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, active
             <h1 className="text-2xl font-black italic tracking-tighter text-white leading-none drop-shadow-sm">
               JIRVINHO
             </h1>
-            <span className="text-[10px] md:text-xs font-bold text-brazil-yellow tracking-[0.2em] uppercase opacity-90">Sports Maestro</span>
+            <span className="text-[10px] md:text-xs font-bold text-brazil-yellow tracking-[0.2em] uppercase opacity-90 hidden xs:block">Sports Maestro</span>
           </div>
         </div>
 
@@ -74,10 +74,10 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, active
                     </div>
                     <button 
                         onClick={onLogout}
-                        className="text-slate-400 hover:text-red-500 transition-colors p-2.5 hover:bg-red-500/10 rounded-xl"
+                        className="text-red-500 hover:text-red-400 hover:bg-red-500/10 transition-all p-3 rounded-xl cursor-pointer active:scale-95"
                         title="Logout"
                     >
-                        <LogOut size={20} />
+                        <LogOut size={22} />
                     </button>
                 </div>
             ) : (
