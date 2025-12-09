@@ -547,7 +547,11 @@ export const App: React.FC = () => {
       try {
           await dbService.replyToMessage(msgId, text);
           // Wait a beat before allowing polling to takeover, or just rely on smart merge
-          if (user) fetchData(user);
+          // AWAIT IS CRITICAL HERE to ensure we don't clear the pending flag before the fetch captures the state.
+          // If we don't await, pendingActionsRef.current.delete(msgId) runs immediately, 
+          // and if the subsequent fetch (or parallel poll) returns before the DB update is consistent,
+          // the optimistic reply is lost.
+          if (user) await fetchData(user);
       } catch (e: any) {
           console.error("Reply failed", e);
           // Revert optimistic update if failed
