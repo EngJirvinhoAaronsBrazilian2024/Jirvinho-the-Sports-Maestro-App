@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { User, UserRole, Tip, NewsPost, MaestroStats, TipStatus, TipCategory, TipLeg, Message, Slide } from './types';
-import { dbService } from './services/db';
+// SWITCHED TO LOCAL DB SERVICE
+import { dbService } from './services/mockDb'; 
 import { generateMatchAnalysis, checkBetResult } from './services/geminiService';
 import { Layout } from './components/Layout';
 import { TipCard } from './components/TipCard';
@@ -136,18 +137,10 @@ export const App: React.FC = () => {
             
             // SMART MERGE: 
             // We must merge server data with local optimistic state to prevent flickering.
-            // 1. New server data takes precedence by default.
-            // 2. EXCEPT if we have a local optimistic update (tracked in pendingActionsRef)
-            // 3. AND we keep local temporary messages (ids that don't exist in server list)
-            
             setMessages(prev => {
                 const serverIds = new Set(serverMsgs.map(m => m.id));
-                
-                // Keep temporary messages that haven't been synced yet
-                // (Assumes temp IDs are timestamps/numeric-strings different from UUIDs or just not in server list yet)
                 const pendingTempMessages = prev.filter(m => !serverIds.has(m.id));
                 
-                // Map server messages, but preserve local 'reply' if we are currently editing/sending it
                 const mergedServerMessages = serverMsgs.map(serverMsg => {
                     if (pendingActionsRef.current.has(serverMsg.id)) {
                         const localMsg = prev.find(p => p.id === serverMsg.id);
@@ -181,7 +174,6 @@ export const App: React.FC = () => {
         
         setUser(u);
         
-        // Removed await to prevent blocking the UI initialization. Data will populate when ready.
         if (u) {
              fetchData(u);
         } else {
@@ -194,34 +186,32 @@ export const App: React.FC = () => {
         mounted = false;
         if (authListener?.subscription) authListener.subscription.unsubscribe();
     };
-  }, [fetchData]); // Only depends on stable fetchData
+  }, [fetchData]);
 
   // --- Polling ---
   useEffect(() => {
       if (!user) return;
-      // Reduced polling frequency to prevent rate limiting errors
+      // Frequent polling for local DB is cheap
       const interval = setInterval(() => {
           fetchData(user);
-      }, 5000);
+      }, 3000);
       return () => clearInterval(interval);
   }, [user, fetchData]);
 
   // --- Auto Scroll for Chat ---
   useEffect(() => {
       if (activeTab === 'contact' || (activeTab === 'admin' && adminTab === 'messages')) {
-          // Add a small delay to ensure DOM is ready
           setTimeout(() => {
               messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
           }, 100);
       }
-  }, [messages.length, activeTab, adminTab]); // Scroll when messages count changes
+  }, [messages.length, activeTab, adminTab]);
 
 
   // --- Handlers ---
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Do not show spinners - instant interaction
     setAuthError('');
     try {
       if (authMode === 'login') {
@@ -229,11 +219,8 @@ export const App: React.FC = () => {
       } else if (authMode === 'signup') {
         try {
           await dbService.signUp(email, password, displayName);
-          // Check if session was created
           const u = await dbService.getCurrentUser();
           if (!u) {
-             // If signup was successful but no session, try logging in immediately.
-             // This handles cases where confirmation might be pending but we want to try entry anyway.
              try {
                 await dbService.login(email, password);
              } catch (loginErr) {
@@ -243,12 +230,10 @@ export const App: React.FC = () => {
           }
         } catch (signUpError: any) {
            const errStr = (signUpError.message || '').toLowerCase();
-           // Automatically confirm/login if user already exists
            if (errStr.includes('already registered') || errStr.includes('unique constraint') || errStr.includes('already exists')) {
               try {
                   await dbService.login(email, password);
               } catch (loginErr: any) {
-                  // If login fails after signup collision, check specific error
                   if (loginErr.message?.toLowerCase().includes('invalid login credentials')) {
                       setAuthError('Account exists. Incorrect password.');
                   } else {
@@ -270,14 +255,11 @@ export const App: React.FC = () => {
   };
 
   const handleLogout = async () => {
-    // Immediate local cleanup for instant UI feedback
     setUser(null);
     setTips([]);
     setNews([]);
     setMessages([]);
     setActiveTab('dashboard');
-    
-    // Attempt actual signout
     try {
         await dbService.logout();
     } catch(e) {
@@ -329,7 +311,6 @@ export const App: React.FC = () => {
              await dbService.updateTip(updatedTip);
              setEditingTipId(null);
           } else {
-             // Ensure optional fields are handled strings if empty
              const cleanTip = {
                  ...newTip,
                  kickoffTime: newTip.kickoffTime || new Date().toISOString()
@@ -342,10 +323,6 @@ export const App: React.FC = () => {
             teams: '', league: LEAGUES[0], prediction: '', odds: 1.50, confidence: 'Medium', sport: 'Football', bettingCode: '', legs: [], kickoffTime: '', analysis: ''
           });
           if (user) await fetchData(user);
-          if (!editingTipId) {
-             // Optional: Show brief success feedback without blocking
-             // toast.success("Tip Added!"); 
-          }
       } catch (e: any) {
           console.error("Save Error:", e);
           alert("Error saving tip: " + (e.message || "Unknown Error. Check permissions."));
@@ -362,7 +339,6 @@ export const App: React.FC = () => {
   };
 
   const handleSettleTip = async (id: string, status: TipStatus, score: string) => {
-      // Prompt user for score if not provided or if default empty
       let finalScore = score;
       if (!finalScore || finalScore === '1-0' || finalScore === '0-1') {
          const input = window.prompt(`Enter Final Score for this ${status} tip (e.g. 2-1):`, "");
@@ -392,7 +368,6 @@ export const App: React.FC = () => {
       setNewTip(tip);
       setEditingTipId(tip.id);
       setAdminTab('tips');
-      // Scroll to top of admin section
       const adminPanel = document.getElementById('admin-panel');
       if (adminPanel) adminPanel.scrollIntoView({ behavior: 'smooth' });
   }
@@ -401,7 +376,6 @@ export const App: React.FC = () => {
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, callback: (base64: string) => void) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Check file size (e.g., limit to 2MB for base64 storage in text column)
       if (file.size > 2 * 1024 * 1024) {
           alert("File size too large! Please upload under 2MB.");
           return;
@@ -438,7 +412,6 @@ export const App: React.FC = () => {
   const handleEditNews = (post: NewsPost) => {
       setNewNews(post);
       setEditingNewsId(post.id);
-      // Scroll to form
       const adminPanel = document.getElementById('admin-panel');
       if (adminPanel) adminPanel.scrollIntoView({ behavior: 'smooth' });
   };
@@ -518,10 +491,7 @@ export const App: React.FC = () => {
       setMessages(prev => [...prev, optimisticMsg]); // Append to end
 
       try {
-        // Send and get the real message with real ID
         const savedMsg = await dbService.sendMessage(user.uid, user.displayName || 'User', msgContent);
-        
-        // Update state with real ID to ensure delete works
         if (savedMsg) {
             setMessages(prev => prev.map(m => m.id === tempId ? savedMsg : m));
         } else {
@@ -537,44 +507,31 @@ export const App: React.FC = () => {
       const text = replyText[msgId];
       if (!text) return;
       
-      // Mark as pending to protect from polling overwrite
       pendingActionsRef.current.add(msgId);
-
-      // Optimistic UI
       setReplyText(prev => ({ ...prev, [msgId]: '' }));
       setMessages(prev => prev.map(m => m.id === msgId ? { ...m, reply: text, isRead: true } : m));
 
       try {
           await dbService.replyToMessage(msgId, text);
-          // Wait a beat before allowing polling to takeover, or just rely on smart merge
-          // AWAIT IS CRITICAL HERE to ensure we don't clear the pending flag before the fetch captures the state.
-          // If we don't await, pendingActionsRef.current.delete(msgId) runs immediately, 
-          // and if the subsequent fetch (or parallel poll) returns before the DB update is consistent,
-          // the optimistic reply is lost.
           if (user) await fetchData(user);
       } catch (e: any) {
           console.error("Reply failed", e);
-          // Revert optimistic update if failed
           setMessages(prev => prev.map(m => m.id === msgId ? { ...m, reply: undefined, isRead: false } : m));
-          setReplyText(prev => ({ ...prev, [msgId]: text })); // Restore text
+          setReplyText(prev => ({ ...prev, [msgId]: text }));
       } finally {
-          // Release lock
           pendingActionsRef.current.delete(msgId);
       }
   };
   
   const handleDeleteMessage = async (msgId: string) => {
       if (window.confirm("Delete this message?")) {
-          // Optimistic remove
           setMessages(prev => prev.filter(m => m.id !== msgId));
           try {
               await dbService.deleteMessage(msgId);
-              // We don't necessarily need to fetch if delete succeeds, as optimistic update handled it
-              // But fetching ensures sync
               fetchData(user); 
           } catch(e) {
               console.error("Failed to delete", e);
-              alert("Failed to delete message. It might have been already deleted.");
+              alert("Failed to delete message.");
               fetchData(user);
           }
       }

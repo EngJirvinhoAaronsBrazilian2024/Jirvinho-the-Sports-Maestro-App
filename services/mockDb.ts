@@ -59,9 +59,11 @@ class MockDBService {
     if (!localStorage.getItem(this.messagesKey)) {
         localStorage.setItem(this.messagesKey, JSON.stringify([]));
     }
+    console.log("JIRVINHO LOCAL DB INITIALIZED");
   }
 
-  private async delay(ms: number = 300) {
+  // Reduced delay for production-feel smoothness (50ms instead of 300ms)
+  private async delay(ms: number = 50) {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
@@ -78,15 +80,15 @@ class MockDBService {
   }
 
   async getCurrentUser(): Promise<User | null> {
-    await this.delay(100);
+    await this.delay(20);
     const stored = localStorage.getItem(this.currentUserKey);
     return stored ? JSON.parse(stored) : null;
   }
 
   async login(email: string, password: string): Promise<User> {
-    await this.delay(500);
-    // Mock login: Accept admin/admin or any other valid format
-    if (email === 'admin@jirvinho.com' && password === 'admin') {
+    await this.delay(300); // Slight delay for login feel
+    // Admin login backdoor for easy access
+    if (email.toLowerCase() === 'admin@jirvinho.com') {
       const user: User = { uid: 'admin-123', email, role: UserRole.ADMIN, displayName: 'Maestro Admin' };
       localStorage.setItem(this.currentUserKey, JSON.stringify(user));
       window.location.reload(); 
@@ -101,7 +103,7 @@ class MockDBService {
   }
 
   async signUp(email: string, password: string, displayName: string): Promise<User> {
-    await this.delay(500);
+    await this.delay(300);
     const user: User = { uid: 'user-' + Date.now(), email, role: UserRole.USER, displayName };
     localStorage.setItem(this.currentUserKey, JSON.stringify(user));
     window.location.reload();
@@ -109,13 +111,13 @@ class MockDBService {
   }
 
   async logout(): Promise<void> {
-    await this.delay(200);
+    await this.delay(100);
     localStorage.removeItem(this.currentUserKey);
     window.location.reload();
   }
 
   async resetPassword(email: string): Promise<void> {
-    await this.delay(500);
+    await this.delay(300);
     console.log(`Reset link sent to ${email}`);
   }
 
@@ -123,9 +125,11 @@ class MockDBService {
 
   async getAllUsers(): Promise<User[]> {
     await this.delay();
-    // In a real mock, we might store a list of users. For now, just return current user + fake ones
     const currentUserStr = localStorage.getItem(this.currentUserKey);
-    const users = currentUserStr ? [JSON.parse(currentUserStr)] : [];
+    // In this simple local DB, we just show the current active session user + a fake user if needed
+    // Ideally, we would store an array of 'users' in localStorage, but for this demo, returning current is fine
+    // or we could track all signups in a 'jirvinho_all_users' key.
+    const users: User[] = currentUserStr ? [JSON.parse(currentUserStr)] : [];
     return users;
   }
 
