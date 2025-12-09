@@ -586,6 +586,8 @@ export const App: React.FC = () => {
                         <Smartphone className="absolute left-4 top-3.5 text-slate-500 group-focus-within:text-brazil-green transition-colors" size={20} />
                         <input
                             type="text"
+                            name="displayName"
+                            autoComplete="name"
                             placeholder="Display Name"
                             className="w-full bg-slate-950/50 border border-white/10 rounded-2xl py-3.5 pl-12 pr-4 text-white placeholder-slate-500 focus:outline-none focus:border-brazil-green focus:ring-1 focus:ring-brazil-green transition-all"
                             value={displayName}
@@ -599,6 +601,8 @@ export const App: React.FC = () => {
                     <Mail className="absolute left-4 top-3.5 text-slate-500 group-focus-within:text-brazil-green transition-colors" size={20} />
                     <input
                         type="email"
+                        name="email"
+                        autoComplete="email"
                         placeholder="Email Address"
                         className="w-full bg-slate-950/50 border border-white/10 rounded-2xl py-3.5 pl-12 pr-4 text-white placeholder-slate-500 focus:outline-none focus:border-brazil-green focus:ring-1 focus:ring-brazil-green transition-all"
                         value={email}
@@ -611,6 +615,8 @@ export const App: React.FC = () => {
                     <Lock className="absolute left-4 top-3.5 text-slate-500 group-focus-within:text-brazil-green transition-colors" size={20} />
                     <input
                         type={showPassword ? "text" : "password"}
+                        name="password"
+                        autoComplete={authMode === 'signup' ? 'new-password' : 'current-password'}
                         placeholder="Password"
                         className="w-full bg-slate-950/50 border border-white/10 rounded-2xl py-3.5 pl-12 pr-12 text-white placeholder-slate-500 focus:outline-none focus:border-brazil-green focus:ring-1 focus:ring-brazil-green transition-all"
                         value={password}
