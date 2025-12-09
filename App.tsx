@@ -931,21 +931,27 @@ export const App: React.FC = () => {
         {/* --- ADMIN TAB --- */}
         {activeTab === 'admin' && user.role === UserRole.ADMIN && (
             <div id="admin-panel" className="animate-in fade-in slide-in-from-bottom-8 duration-700 pb-20">
-                <div className="flex flex-col md:flex-row items-center justify-between mb-10 gap-4">
-                     <h2 className="text-3xl font-black italic text-white flex items-center gap-3">
+                <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 gap-6 md:gap-4">
+                     <h2 className="text-3xl font-black italic text-white flex items-center gap-3 pl-1 md:pl-0">
                         <Shield className="text-brazil-green" size={32}/> ADMIN PANEL
                      </h2>
                      {/* Sub-nav for Admin */}
-                     <div className="flex bg-slate-900/80 rounded-xl p-1.5 border border-white/5 backdrop-blur-md shadow-lg">
-                        {['overview', 'tips', 'news', 'slides', 'users', 'messages'].map((t) => (
-                            <button
-                                key={t}
-                                onClick={() => setAdminTab(t as any)}
-                                className={`px-5 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${adminTab === t ? 'bg-slate-700 text-white shadow-lg transform scale-105' : 'text-slate-500 hover:text-white'}`}
-                            >
-                                {t}
-                            </button>
-                        ))}
+                     <div className="w-full md:w-auto overflow-x-auto scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
+                         <div className="flex md:inline-flex gap-3 md:gap-0 bg-transparent md:bg-slate-900/80 md:rounded-xl md:p-1.5 md:border md:border-white/5 md:backdrop-blur-md md:shadow-lg min-w-max pb-1 md:pb-0">
+                            {['overview', 'tips', 'news', 'slides', 'users', 'messages'].map((t) => (
+                                <button
+                                    key={t}
+                                    onClick={() => setAdminTab(t as any)}
+                                    className={`whitespace-nowrap px-6 md:px-5 py-2.5 rounded-full md:rounded-lg text-xs font-bold uppercase tracking-wider transition-all border md:border-0 ${
+                                        adminTab === t 
+                                        ? 'bg-white md:bg-slate-700 text-slate-900 md:text-white border-white shadow-lg transform scale-105' 
+                                        : 'bg-slate-800/50 md:bg-transparent text-slate-400 md:text-slate-500 border-white/5 hover:text-white'
+                                    }`}
+                                >
+                                    {t}
+                                </button>
+                            ))}
+                         </div>
                      </div>
                 </div>
 
