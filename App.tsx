@@ -191,10 +191,10 @@ export const App: React.FC = () => {
   // --- Polling ---
   useEffect(() => {
       if (!user) return;
-      // Frequent polling for local DB is cheap
+      // Fast polling for instant messaging feel (800ms)
       const interval = setInterval(() => {
           fetchData(user);
-      }, 3000);
+      }, 800);
       return () => clearInterval(interval);
   }, [user, fetchData]);
 
