@@ -57,7 +57,27 @@ class MockDBService {
         this.safeSetItem(this.slidesKey, []);
     }
     if (!localStorage.getItem(this.messagesKey)) {
-        this.safeSetItem(this.messagesKey, []);
+        // Seed some initial messages for testing
+        const initialMessages: Message[] = [
+            {
+                id: 'msg-1',
+                userId: 'user-demo',
+                userName: 'Alex P.',
+                content: 'Hi Maestro! Do you have any VIP tips for the Champions League final?',
+                createdAt: Date.now() - 3600000,
+                isRead: false
+            },
+            {
+                id: 'msg-2',
+                userId: 'user-demo-2',
+                userName: 'Sarah J.',
+                content: 'The last accumulator was fire! Thanks for the win.',
+                createdAt: Date.now() - 7200000,
+                isRead: true,
+                reply: 'You are welcome Sarah! Glad we could help you win big.'
+            }
+        ];
+        this.safeSetItem(this.messagesKey, initialMessages);
     }
     console.log("JIRVINHO LOCAL DB INITIALIZED");
   }
@@ -96,7 +116,7 @@ class MockDBService {
   }
 
   async login(email: string, password: string): Promise<User> {
-    await this.delay(100); // Minimal delay for login feel
+    await this.delay(0); 
     // Admin login backdoor for easy access
     if (email.toLowerCase() === 'admin@jirvinho.com') {
       const user: User = { uid: 'admin-123', email, role: UserRole.ADMIN, displayName: 'Maestro Admin' };
@@ -113,7 +133,7 @@ class MockDBService {
   }
 
   async signUp(email: string, password: string, displayName: string): Promise<User> {
-    await this.delay(100);
+    await this.delay(0);
     const user: User = { uid: 'user-' + Date.now(), email, role: UserRole.USER, displayName };
     this.safeSetItem(this.currentUserKey, user);
     window.location.reload();
@@ -121,13 +141,13 @@ class MockDBService {
   }
 
   async logout(): Promise<void> {
-    await this.delay(50);
+    await this.delay(0);
     localStorage.removeItem(this.currentUserKey);
     window.location.reload();
   }
 
   async resetPassword(email: string): Promise<void> {
-    await this.delay(200);
+    await this.delay(0);
     console.log(`Reset link sent to ${email}`);
   }
 
@@ -137,6 +157,11 @@ class MockDBService {
     await this.delay(0);
     const currentUserStr = localStorage.getItem(this.currentUserKey);
     const users: User[] = currentUserStr ? [JSON.parse(currentUserStr)] : [];
+    // Add dummy users if only admin exists
+    if (users.length === 1 && users[0].role === UserRole.ADMIN) {
+        users.push({ uid: 'user-demo', email: 'alex@example.com', role: UserRole.USER, displayName: 'Alex P.' });
+        users.push({ uid: 'user-demo-2', email: 'sarah@example.com', role: UserRole.USER, displayName: 'Sarah J.' });
+    }
     return users;
   }
 

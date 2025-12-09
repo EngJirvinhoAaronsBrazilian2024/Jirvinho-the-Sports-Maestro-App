@@ -539,6 +539,8 @@ export const App: React.FC = () => {
 
   // --- RENDER HELPERS ---
 
+  // ... (Initialization and Auth Logic remains same)
+
   if (isInitializing) {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center relative overflow-hidden">
@@ -652,7 +654,7 @@ export const App: React.FC = () => {
         {activeTab === 'dashboard' && (
             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-700">
                 
-                {/* WELCOME BANNER - NEW ADDITION */}
+                {/* WELCOME BANNER */}
                 <div className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-r from-green-900/60 via-slate-900/80 to-slate-900/80 border border-white/10 p-8 shadow-2xl relative group">
                    <div className="absolute top-0 right-0 p-10 opacity-10 group-hover:opacity-20 transition-opacity duration-1000">
                       <Trophy size={200} className="transform rotate-12 text-white" />
@@ -821,10 +823,10 @@ export const App: React.FC = () => {
         )}
 
         {/* --- CONTACT / CHAT TAB --- */}
-        {activeTab === 'contact' && (
+        {(activeTab === 'contact' || (activeTab === 'admin' && adminTab === 'messages')) && (
             // FIX: Using fixed positioning on mobile to ensure full viewport height usage without getting hidden by nav
-            <div className="fixed inset-x-0 top-20 bottom-24 md:static md:h-[calc(100vh-140px)] flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500 z-30">
-                 <div className="flex-1 glass-panel md:rounded-[2.5rem] overflow-hidden flex flex-col relative shadow-2xl h-full border-x-0 md:border-x border-y-0 md:border-y border-white/10">
+            <div className={`fixed inset-x-0 ${activeTab === 'admin' ? 'static h-auto min-h-[600px]' : 'top-20 bottom-24 md:static md:h-[calc(100vh-140px)]'} flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500 z-30`}>
+                 <div className={`flex-1 glass-panel ${activeTab === 'admin' ? 'rounded-[2.5rem]' : 'md:rounded-[2.5rem]'} overflow-hidden flex flex-col relative shadow-2xl h-full border-x-0 md:border-x border-y-0 md:border-y border-white/10`}>
                      {/* Chat Header */}
                      <div className="p-4 md:p-6 bg-slate-900/50 border-b border-white/5 flex items-center justify-between backdrop-blur-md shrink-0">
                          <h2 className="text-lg md:text-xl font-black italic text-white flex items-center gap-3">
@@ -935,7 +937,7 @@ export const App: React.FC = () => {
                      </h2>
                      {/* Sub-nav for Admin */}
                      <div className="flex bg-slate-900/80 rounded-xl p-1.5 border border-white/5 backdrop-blur-md shadow-lg">
-                        {['overview', 'tips', 'news', 'slides', 'users'].map((t) => (
+                        {['overview', 'tips', 'news', 'slides', 'users', 'messages'].map((t) => (
                             <button
                                 key={t}
                                 onClick={() => setAdminTab(t as any)}
@@ -958,9 +960,9 @@ export const App: React.FC = () => {
                             <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-2">Active Tips</p>
                             <p className="text-4xl font-black text-white">{tips.filter(t => t.status === TipStatus.PENDING).length}</p>
                         </div>
-                        <div className="glass-panel p-6 rounded-[2rem] text-center">
-                            <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-2">Messages</p>
-                            <p className="text-4xl font-black text-white">{messages.length}</p>
+                        <div onClick={() => setAdminTab('messages')} className="glass-panel p-6 rounded-[2rem] text-center cursor-pointer hover:bg-slate-800 transition-colors group">
+                            <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-2 group-hover:text-white transition-colors">Messages</p>
+                            <p className="text-4xl font-black text-white group-hover:text-brazil-yellow transition-colors">{messages.length}</p>
                         </div>
                         <div className="glass-panel p-6 rounded-[2rem] text-center border-brazil-green/30 relative overflow-hidden">
                              <div className="absolute inset-0 bg-brazil-green/5"></div>
