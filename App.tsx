@@ -199,10 +199,10 @@ export const App: React.FC = () => {
   // --- Polling ---
   useEffect(() => {
       if (!user) return;
-      // High-frequency polling (800ms) for fast messaging updates on mobile
+      // Reduced polling frequency to prevent rate limiting errors
       const interval = setInterval(() => {
           fetchData(user);
-      }, 800);
+      }, 5000);
       return () => clearInterval(interval);
   }, [user, fetchData]);
 

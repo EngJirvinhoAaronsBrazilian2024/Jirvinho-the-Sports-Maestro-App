@@ -35,8 +35,12 @@ class DBService {
             let role = (profile?.role as UserRole) || UserRole.USER;
 
             if (isAdminEmail && role !== UserRole.ADMIN) {
-                await supabase.from('profiles').update({ role: 'ADMIN' }).eq('id', session.user.id);
-                role = UserRole.ADMIN;
+                try {
+                    await supabase.from('profiles').update({ role: 'ADMIN' }).eq('id', session.user.id);
+                    role = UserRole.ADMIN;
+                } catch (updateError) {
+                    console.warn("Could not auto-promote admin. Check database permissions.", updateError);
+                }
             }
 
             const finalUser: User = {
@@ -68,28 +72,42 @@ class DBService {
         if (!session?.user) return null;
 
         // Fetch profile for role
-        const { data: profile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', session.user.id)
-        .single();
+        try {
+            const { data: profile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
 
-        // HARDCODED ADMIN OVERRIDE FOR OWNER
-        const isAdminEmail = session.user.email === 'admin@jirvinho.com';
-        let role = (profile?.role as UserRole) || UserRole.USER;
+            // HARDCODED ADMIN OVERRIDE FOR OWNER
+            const isAdminEmail = session.user.email === 'admin@jirvinho.com';
+            let role = (profile?.role as UserRole) || UserRole.USER;
 
-        // Sync Admin Status to DB if missing
-        if (isAdminEmail && role !== UserRole.ADMIN) {
-             await supabase.from('profiles').update({ role: 'ADMIN' }).eq('id', session.user.id);
-             role = UserRole.ADMIN;
+            // Sync Admin Status to DB if missing
+            if (isAdminEmail && role !== UserRole.ADMIN) {
+                try {
+                    await supabase.from('profiles').update({ role: 'ADMIN' }).eq('id', session.user.id);
+                    role = UserRole.ADMIN;
+                } catch (e) {
+                    console.warn("Failed to update admin role on check", e);
+                }
+            }
+
+            return {
+            uid: session.user.id,
+            email: session.user.email!,
+            role: role,
+            displayName: profile?.display_name || session.user.user_metadata.displayName || 'User'
+            };
+        } catch (profileError) {
+            // Return basic user info if profile fetch fails (e.g. table missing)
+            return {
+              uid: session.user.id,
+              email: session.user.email!,
+              role: UserRole.USER,
+              displayName: session.user.user_metadata.displayName || 'User'
+            };
         }
-
-        return {
-        uid: session.user.id,
-        email: session.user.email!,
-        role: role,
-        displayName: profile?.display_name || session.user.user_metadata.displayName || 'User'
-        };
     } catch (e) {
         console.error("Error checking current user", e);
         return null;
