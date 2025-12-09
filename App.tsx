@@ -15,7 +15,7 @@ import {
   Flame, Eye, EyeOff, MessageSquare, Send, Globe, Newspaper, Calendar, Database, 
   Wand2, Upload, ExternalLink, Users, Shield, ShieldAlert, Edit3, ArrowLeft, 
   Activity, LayoutDashboard, Image as ImageIcon, UploadCloud, AlertTriangle, Sparkles,
-  List
+  List, Search, UserCog
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend } from 'recharts';
 
@@ -90,6 +90,7 @@ export const App: React.FC = () => {
   
   // Admin State
   const [adminTab, setAdminTab] = useState<'overview' | 'tips' | 'news' | 'slides' | 'users' | 'messages'>('overview');
+  const [searchTerm, setSearchTerm] = useState('');
   const [editingTipId, setEditingTipId] = useState<string | null>(null);
   const [editingNewsId, setEditingNewsId] = useState<string | null>(null);
   const [editingSlideId, setEditingSlideId] = useState<string | null>(null);
@@ -464,9 +465,13 @@ export const App: React.FC = () => {
 
   const handleUserAction = async (uid: string, action: 'make_admin' | 'delete') => {
       if (action === 'make_admin') {
-          await dbService.updateUserRole(uid, UserRole.ADMIN);
+          if (window.confirm("Promote this user to Admin?")) {
+             await dbService.updateUserRole(uid, UserRole.ADMIN);
+          }
       } else {
-          await dbService.deleteUser(uid);
+          if (window.confirm("Permanently delete this user?")) {
+              await dbService.deleteUser(uid);
+          }
       }
       fetchData(user); // Force refresh
   };
@@ -1337,33 +1342,70 @@ export const App: React.FC = () => {
                 {/* USERS MANAGEMENT */}
                 {adminTab === 'users' && (
                     <div className="bg-slate-900 p-8 rounded-[2.5rem] border border-slate-800">
-                        <h3 className="text-xl font-bold text-white mb-8">User Management</h3>
-                        <div className="space-y-4">
-                            {allUsers.map(u => (
-                                <div key={u.uid} className="flex items-center justify-between bg-slate-950 p-5 rounded-2xl border border-slate-800">
+                        <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
+                            <h3 className="text-xl font-bold text-white flex items-center gap-3">
+                                <UserCog className="text-brazil-green" size={24} />
+                                User Management
+                            </h3>
+                            <div className="relative w-full md:w-64">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+                                <input 
+                                    type="text" 
+                                    placeholder="Search users..." 
+                                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-3 text-sm text-white focus:outline-none focus:border-brazil-green"
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                            {allUsers
+                                .filter(u => u.displayName?.toLowerCase().includes(searchTerm.toLowerCase()) || u.email.toLowerCase().includes(searchTerm.toLowerCase()))
+                                .map(u => (
+                                <div key={u.uid} className="flex flex-col sm:flex-row sm:items-center justify-between bg-slate-950 p-5 rounded-2xl border border-slate-800 hover:border-white/10 transition-colors gap-4 sm:gap-0">
                                     <div>
-                                        <p className="text-white font-bold text-lg">{u.displayName || 'No Name'}</p>
-                                        <p className="text-xs text-slate-500 mt-1 font-medium">{u.email} • <span className={u.role === UserRole.ADMIN ? 'text-brazil-green font-bold' : 'text-slate-500'}>{u.role}</span></p>
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center font-bold text-white border border-white/5">
+                                                {u.displayName?.charAt(0).toUpperCase()}
+                                            </div>
+                                            <div>
+                                                <p className="text-white font-bold text-base">{u.displayName || 'No Name'}</p>
+                                                <p className="text-xs text-slate-500 font-medium">{u.email}</p>
+                                            </div>
+                                        </div>
+                                        <div className="mt-2 flex gap-2">
+                                            <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${u.role === UserRole.ADMIN ? 'bg-brazil-green/20 text-brazil-green border border-brazil-green/30' : 'bg-slate-800 text-slate-400 border border-white/5'}`}>
+                                                {u.role}
+                                            </span>
+                                            <span className="text-[10px] text-slate-600 font-mono self-center">ID: {u.uid.slice(0,6)}...</span>
+                                        </div>
                                     </div>
-                                    <div className="flex gap-3">
+                                    
+                                    <div className="flex items-center gap-2 self-end sm:self-auto">
                                         {u.role !== UserRole.ADMIN && (
                                             <button 
                                                 onClick={() => handleUserAction(u.uid, 'make_admin')}
-                                                className="px-4 py-2 bg-blue-900/20 text-blue-400 text-xs font-bold uppercase rounded-xl hover:bg-blue-500 hover:text-white transition-all tracking-wider"
+                                                className="px-4 py-2 bg-blue-600/10 text-blue-500 hover:bg-blue-600 hover:text-white border border-blue-600/20 rounded-xl text-xs font-bold uppercase tracking-wider transition-all"
                                             >
-                                                Make Admin
+                                                Promote
                                             </button>
                                         )}
-                                        <button 
-                                            onClick={() => handleUserAction(u.uid, 'delete')}
-                                            className="p-2 text-slate-600 hover:text-red-500 transition-colors hover:bg-red-500/10 rounded-xl"
-                                            title="Delete User"
-                                        >
-                                            <Trash2 size={18}/>
-                                        </button>
+                                        {u.uid !== user.uid && (
+                                            <button 
+                                                onClick={() => handleUserAction(u.uid, 'delete')}
+                                                className="p-2 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border border-red-500/20 rounded-xl transition-all"
+                                                title="Delete User"
+                                            >
+                                                <Trash2 size={18}/>
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
                             ))}
+                            {allUsers.length === 0 && (
+                                <div className="col-span-full text-center py-10 text-slate-500">No users found.</div>
+                            )}
                         </div>
                     </div>
                 )}

@@ -35,12 +35,12 @@ const INITIAL_TIPS: Tip[] = [
 ];
 
 class MockDBService {
-  private usersKey = 'jirvinho_users';
+  private usersKey = 'jirvinho_users_list'; // Key for the list of all users
+  private currentUserKey = 'jirvinho_current_user'; // Key for the currently logged in session
   private tipsKey = 'jirvinho_tips';
   private newsKey = 'jirvinho_news';
   private slidesKey = 'jirvinho_slides';
   private messagesKey = 'jirvinho_messages';
-  private currentUserKey = 'jirvinho_current_user';
 
   constructor() {
     this.initData();
@@ -56,6 +56,17 @@ class MockDBService {
     if (!localStorage.getItem(this.slidesKey)) {
         this.safeSetItem(this.slidesKey, []);
     }
+    
+    // Initialize Users List if empty
+    if (!localStorage.getItem(this.usersKey)) {
+        const initialUsers: User[] = [
+            { uid: 'admin-123', email: 'admin@jirvinho.com', role: UserRole.ADMIN, displayName: 'Maestro Admin' },
+            { uid: 'user-demo', email: 'alex@example.com', role: UserRole.USER, displayName: 'Alex P.' },
+            { uid: 'user-demo-2', email: 'sarah@example.com', role: UserRole.USER, displayName: 'Sarah J.' }
+        ];
+        this.safeSetItem(this.usersKey, initialUsers);
+    }
+
     if (!localStorage.getItem(this.messagesKey)) {
         // Seed some initial messages for testing
         const initialMessages: Message[] = [
@@ -117,27 +128,45 @@ class MockDBService {
 
   async login(email: string, password: string): Promise<User> {
     await this.delay(0); 
-    // Admin login backdoor for easy access
-    if (email.toLowerCase() === 'admin@jirvinho.com') {
-      const user: User = { uid: 'admin-123', email, role: UserRole.ADMIN, displayName: 'Maestro Admin' };
-      this.safeSetItem(this.currentUserKey, user);
-      window.location.reload(); 
-      return user;
-    }
     
-    // Generic user login simulation
-    const user: User = { uid: 'user-' + Date.now(), email, role: UserRole.USER, displayName: 'User' };
+    let users = await this.getAllUsers();
+    let user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+
+    // Backdoor for Admin if not in list
+    if (!user && email.toLowerCase() === 'admin@jirvinho.com') {
+        user = { uid: 'admin-123', email, role: UserRole.ADMIN, displayName: 'Maestro Admin' };
+        users.push(user);
+        this.safeSetItem(this.usersKey, users);
+    }
+
+    // Auto-create generic user if not found (Simulation Mode)
+    if (!user) {
+        user = { uid: 'user-' + Date.now(), email, role: UserRole.USER, displayName: 'User' };
+        users.push(user);
+        this.safeSetItem(this.usersKey, users);
+    }
+
     this.safeSetItem(this.currentUserKey, user);
-    window.location.reload();
+    window.location.reload(); 
     return user;
   }
 
   async signUp(email: string, password: string, displayName: string): Promise<User> {
     await this.delay(0);
-    const user: User = { uid: 'user-' + Date.now(), email, role: UserRole.USER, displayName };
-    this.safeSetItem(this.currentUserKey, user);
+    const users = await this.getAllUsers();
+    
+    // Check if exists
+    if (users.find(u => u.email.toLowerCase() === email.toLowerCase())) {
+        throw new Error("User already registered.");
+    }
+
+    const newUser: User = { uid: 'user-' + Date.now(), email, role: UserRole.USER, displayName };
+    users.push(newUser);
+    this.safeSetItem(this.usersKey, users);
+    
+    this.safeSetItem(this.currentUserKey, newUser);
     window.location.reload();
-    return user;
+    return newUser;
   }
 
   async logout(): Promise<void> {
@@ -155,36 +184,39 @@ class MockDBService {
 
   async getAllUsers(): Promise<User[]> {
     await this.delay(0);
-    const currentUserStr = localStorage.getItem(this.currentUserKey);
-    const users: User[] = currentUserStr ? [JSON.parse(currentUserStr)] : [];
-    // Add dummy users if only admin exists
-    if (users.length === 1 && users[0].role === UserRole.ADMIN) {
-        users.push({ uid: 'user-demo', email: 'alex@example.com', role: UserRole.USER, displayName: 'Alex P.' });
-        users.push({ uid: 'user-demo-2', email: 'sarah@example.com', role: UserRole.USER, displayName: 'Sarah J.' });
-    }
-    return users;
+    const stored = localStorage.getItem(this.usersKey);
+    return stored ? JSON.parse(stored) : [];
   }
 
   async updateUserRole(uid: string, newRole: UserRole): Promise<void> {
     await this.delay(0);
-    const currentUserStr = localStorage.getItem(this.currentUserKey);
-    if (currentUserStr) {
-        const user = JSON.parse(currentUserStr);
-        if (user.uid === uid) {
-            user.role = newRole;
-            this.safeSetItem(this.currentUserKey, user);
+    const users = await this.getAllUsers();
+    const index = users.findIndex(u => u.uid === uid);
+    
+    if (index > -1) {
+        users[index].role = newRole;
+        this.safeSetItem(this.usersKey, users);
+        
+        // If updating the currently logged in user, update session too
+        const currentUser = await this.getCurrentUser();
+        if (currentUser && currentUser.uid === uid) {
+            currentUser.role = newRole;
+            this.safeSetItem(this.currentUserKey, currentUser);
         }
     }
   }
 
   async deleteUser(uid: string): Promise<void> {
     await this.delay(0);
-    const currentUserStr = localStorage.getItem(this.currentUserKey);
-    if (currentUserStr) {
-        const user = JSON.parse(currentUserStr);
-        if (user.uid === uid) {
-            localStorage.removeItem(this.currentUserKey);
-        }
+    let users = await this.getAllUsers();
+    users = users.filter(u => u.uid !== uid);
+    this.safeSetItem(this.usersKey, users);
+
+    // If deleting self (should be prevented by UI, but good safety)
+    const currentUser = await this.getCurrentUser();
+    if (currentUser && currentUser.uid === uid) {
+        localStorage.removeItem(this.currentUserKey);
+        window.location.reload();
     }
   }
 
