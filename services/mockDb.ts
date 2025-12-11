@@ -35,12 +35,19 @@ const INITIAL_TIPS: Tip[] = [
 ];
 
 class MockDBService {
-  private usersKey = 'jirvinho_users_list'; // Key for the list of all users
-  private currentUserKey = 'jirvinho_current_user'; // Key for the currently logged in session
+  private usersKey = 'jirvinho_users_list'; 
+  private currentUserKey = 'jirvinho_current_user';
   private tipsKey = 'jirvinho_tips';
   private newsKey = 'jirvinho_news';
   private slidesKey = 'jirvinho_slides';
   private messagesKey = 'jirvinho_messages';
+
+  // Listeners for "Real-time" updates
+  private tipListeners: ((tips: Tip[]) => void)[] = [];
+  private newsListeners: ((news: NewsPost[]) => void)[] = [];
+  private slideListeners: ((slides: Slide[]) => void)[] = [];
+  private messageListeners: { callback: (msgs: Message[]) => void, userId?: string }[] = [];
+  private userListeners: ((users: User[]) => void)[] = [];
 
   constructor() {
     this.initData();
@@ -93,7 +100,6 @@ class MockDBService {
     console.log("JIRVINHO LOCAL DB INITIALIZED");
   }
 
-  // Wrapper for safe storage
   private safeSetItem(key: string, data: any) {
     try {
       localStorage.setItem(key, JSON.stringify(data));
@@ -102,10 +108,42 @@ class MockDBService {
     }
   }
 
-  // Zero delay for instant local feel
   private async delay(ms: number = 0) {
     if (ms === 0) return;
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  // --- NOTIFICATION HELPERS ---
+  
+  private async notifyTips() {
+      const tips = await this.getTips();
+      this.tipListeners.forEach(cb => cb(tips));
+  }
+  
+  private async notifyNews() {
+      const news = await this.getNews();
+      this.newsListeners.forEach(cb => cb(news));
+  }
+
+  private async notifySlides() {
+      const slides = await this.getSlides();
+      this.slideListeners.forEach(cb => cb(slides));
+  }
+
+  private async notifyMessages() {
+      const allMsgs = await this.getMessages();
+      this.messageListeners.forEach(listener => {
+          if (listener.userId) {
+              listener.callback(allMsgs.filter(m => m.userId === listener.userId));
+          } else {
+              listener.callback(allMsgs);
+          }
+      });
+  }
+
+  private async notifyUsers() {
+      const users = await this.getAllUsers();
+      this.userListeners.forEach(cb => cb(users));
   }
 
   // --- AUTH ---
@@ -117,17 +155,11 @@ class MockDBService {
     } else {
       callback(null);
     }
-    return { data: { subscription: { unsubscribe: () => {} } } };
-  }
-
-  async getCurrentUser(): Promise<User | null> {
-    await this.delay(0);
-    const stored = localStorage.getItem(this.currentUserKey);
-    return stored ? JSON.parse(stored) : null;
+    return () => {}; // Unsubscribe function
   }
 
   async login(email: string, password: string): Promise<User> {
-    await this.delay(0); 
+    await this.delay(200); 
     
     let users = await this.getAllUsers();
     let user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
@@ -139,7 +171,7 @@ class MockDBService {
         this.safeSetItem(this.usersKey, users);
     }
 
-    // Auto-create generic user if not found (Simulation Mode)
+    // Auto-create generic user if not found (Simulation Mode for Demo)
     if (!user) {
         user = { uid: 'user-' + Date.now(), email, role: UserRole.USER, displayName: 'User' };
         users.push(user);
@@ -147,15 +179,15 @@ class MockDBService {
     }
 
     this.safeSetItem(this.currentUserKey, user);
+    // Reload not strictly needed if we handled state completely reactively, but helps reset app state for demo
     window.location.reload(); 
     return user;
   }
 
   async signUp(email: string, password: string, displayName: string): Promise<User> {
-    await this.delay(0);
+    await this.delay(200);
     const users = await this.getAllUsers();
     
-    // Check if exists
     if (users.find(u => u.email.toLowerCase() === email.toLowerCase())) {
         throw new Error("User already registered.");
     }
@@ -170,22 +202,29 @@ class MockDBService {
   }
 
   async logout(): Promise<void> {
-    await this.delay(0);
+    await this.delay(100);
     localStorage.removeItem(this.currentUserKey);
     window.location.reload();
   }
 
   async resetPassword(email: string): Promise<void> {
-    await this.delay(0);
+    await this.delay(500);
     console.log(`Reset link sent to ${email}`);
   }
 
   // --- USERS (Admin) ---
 
   async getAllUsers(): Promise<User[]> {
-    await this.delay(0);
     const stored = localStorage.getItem(this.usersKey);
     return stored ? JSON.parse(stored) : [];
+  }
+
+  subscribeToAllUsers(callback: (users: User[]) => void) {
+      this.userListeners.push(callback);
+      this.getAllUsers().then(u => callback(u));
+      return () => {
+          this.userListeners = this.userListeners.filter(cb => cb !== callback);
+      };
   }
 
   async updateUserRole(uid: string, newRole: UserRole): Promise<void> {
@@ -198,11 +237,15 @@ class MockDBService {
         this.safeSetItem(this.usersKey, users);
         
         // If updating the currently logged in user, update session too
-        const currentUser = await this.getCurrentUser();
-        if (currentUser && currentUser.uid === uid) {
-            currentUser.role = newRole;
-            this.safeSetItem(this.currentUserKey, currentUser);
+        const stored = localStorage.getItem(this.currentUserKey);
+        if (stored) {
+             const currentUser = JSON.parse(stored);
+             if (currentUser.uid === uid) {
+                 currentUser.role = newRole;
+                 this.safeSetItem(this.currentUserKey, currentUser);
+             }
         }
+        this.notifyUsers();
     }
   }
 
@@ -211,20 +254,31 @@ class MockDBService {
     let users = await this.getAllUsers();
     users = users.filter(u => u.uid !== uid);
     this.safeSetItem(this.usersKey, users);
+    this.notifyUsers();
 
-    // If deleting self (should be prevented by UI, but good safety)
-    const currentUser = await this.getCurrentUser();
-    if (currentUser && currentUser.uid === uid) {
-        localStorage.removeItem(this.currentUserKey);
-        window.location.reload();
+    // If deleting self
+    const stored = localStorage.getItem(this.currentUserKey);
+    if (stored) {
+        const currentUser = JSON.parse(stored);
+        if (currentUser.uid === uid) {
+            localStorage.removeItem(this.currentUserKey);
+            window.location.reload();
+        }
     }
   }
 
   // --- TIPS ---
 
   async getTips(): Promise<Tip[]> {
-    await this.delay(0);
     return JSON.parse(localStorage.getItem(this.tipsKey) || '[]');
+  }
+
+  subscribeToTips(callback: (tips: Tip[]) => void) {
+      this.tipListeners.push(callback);
+      this.getTips().then(tips => callback(tips));
+      return () => {
+          this.tipListeners = this.tipListeners.filter(cb => cb !== callback);
+      };
   }
 
   async addTip(tip: Omit<Tip, 'id' | 'createdAt' | 'status' | 'votes'>): Promise<void> {
@@ -239,6 +293,7 @@ class MockDBService {
     };
     tips.unshift(newTip);
     this.safeSetItem(this.tipsKey, tips);
+    this.notifyTips();
   }
 
   async updateTip(tip: Tip): Promise<void> {
@@ -246,6 +301,7 @@ class MockDBService {
     let tips = await this.getTips();
     tips = tips.map(t => t.id === tip.id ? tip : t);
     this.safeSetItem(this.tipsKey, tips);
+    this.notifyTips();
   }
 
   async voteOnTip(id: string, type: 'agree' | 'disagree'): Promise<void> {
@@ -255,6 +311,7 @@ class MockDBService {
     if (tipIndex > -1) {
         tips[tipIndex].votes[type]++;
         this.safeSetItem(this.tipsKey, tips);
+        this.notifyTips();
     }
   }
 
@@ -263,6 +320,7 @@ class MockDBService {
     let tips = await this.getTips();
     tips = tips.filter(t => t.id !== id);
     this.safeSetItem(this.tipsKey, tips);
+    this.notifyTips();
   }
 
   async settleTip(id: string, status: TipStatus, score?: string): Promise<void> {
@@ -273,11 +331,12 @@ class MockDBService {
         tips[tipIndex].status = status;
         if (score) tips[tipIndex].resultScore = score;
         this.safeSetItem(this.tipsKey, tips);
+        this.notifyTips();
     }
   }
 
   // --- STATS ---
-
+  // Stats are derived from tips in the UI mostly, but if needed:
   async getStats(): Promise<MaestroStats> {
     await this.delay(0);
     const tips = await this.getTips();
@@ -298,8 +357,15 @@ class MockDBService {
   // --- NEWS ---
 
   async getNews(): Promise<NewsPost[]> {
-    await this.delay(0);
     return JSON.parse(localStorage.getItem(this.newsKey) || '[]');
+  }
+
+  subscribeToNews(callback: (news: NewsPost[]) => void) {
+      this.newsListeners.push(callback);
+      this.getNews().then(n => callback(n));
+      return () => {
+          this.newsListeners = this.newsListeners.filter(cb => cb !== callback);
+      };
   }
 
   async addNews(post: Omit<NewsPost, 'id' | 'createdAt'>): Promise<void> {
@@ -312,6 +378,7 @@ class MockDBService {
     };
     news.unshift(newPost);
     this.safeSetItem(this.newsKey, news);
+    this.notifyNews();
   }
 
   async updateNews(post: NewsPost): Promise<void> {
@@ -319,6 +386,7 @@ class MockDBService {
     let news = await this.getNews();
     news = news.map(n => n.id === post.id ? post : n);
     this.safeSetItem(this.newsKey, news);
+    this.notifyNews();
   }
 
   async deleteNews(id: string): Promise<void> {
@@ -326,13 +394,21 @@ class MockDBService {
     let news = await this.getNews();
     news = news.filter(n => n.id !== id);
     this.safeSetItem(this.newsKey, news);
+    this.notifyNews();
   }
 
   // --- SLIDES ---
 
   async getSlides(): Promise<Slide[]> {
-      await this.delay(0);
       return JSON.parse(localStorage.getItem(this.slidesKey) || '[]');
+  }
+
+  subscribeToSlides(callback: (slides: Slide[]) => void) {
+      this.slideListeners.push(callback);
+      this.getSlides().then(s => callback(s));
+      return () => {
+          this.slideListeners = this.slideListeners.filter(cb => cb !== callback);
+      };
   }
 
   async addSlide(slide: Partial<Slide>): Promise<void> {
@@ -347,6 +423,7 @@ class MockDBService {
       };
       slides.unshift(newSlide);
       this.safeSetItem(this.slidesKey, slides);
+      this.notifySlides();
   }
 
   async updateSlide(slide: Slide): Promise<void> {
@@ -354,6 +431,7 @@ class MockDBService {
       let slides = await this.getSlides();
       slides = slides.map(s => s.id === slide.id ? slide : s);
       this.safeSetItem(this.slidesKey, slides);
+      this.notifySlides();
   }
 
   async deleteSlide(id: string): Promise<void> {
@@ -361,20 +439,33 @@ class MockDBService {
       let slides = await this.getSlides();
       slides = slides.filter(s => s.id !== id);
       this.safeSetItem(this.slidesKey, slides);
+      this.notifySlides();
   }
 
   // --- MESSAGES ---
 
   async getMessages(): Promise<Message[]> {
-      await this.delay(0);
       const msgs = JSON.parse(localStorage.getItem(this.messagesKey) || '[]');
       return msgs.sort((a: Message, b: Message) => a.createdAt - b.createdAt);
   }
 
-  async getUserMessages(userId: string): Promise<Message[]> {
-      await this.delay(0);
-      const allMsgs = await this.getMessages();
-      return allMsgs.filter(m => m.userId === userId);
+  subscribeToMessages(user: User, callback: (msgs: Message[]) => void) {
+      const isOwner = user.role === UserRole.ADMIN;
+      // If admin, we listen to all. If user, we listen to own.
+      const listenerObj = {
+          callback,
+          userId: isOwner ? undefined : user.uid
+      };
+      this.messageListeners.push(listenerObj);
+      
+      this.getMessages().then(allMsgs => {
+          if (isOwner) callback(allMsgs);
+          else callback(allMsgs.filter(m => m.userId === user.uid));
+      });
+
+      return () => {
+          this.messageListeners = this.messageListeners.filter(l => l !== listenerObj);
+      };
   }
 
   async sendMessage(userId: string, userName: string, content: string): Promise<Message | null> {
@@ -390,6 +481,7 @@ class MockDBService {
       };
       msgs.push(newMsg);
       this.safeSetItem(this.messagesKey, msgs);
+      this.notifyMessages();
       return newMsg;
   }
 
@@ -401,6 +493,7 @@ class MockDBService {
           msgs[idx].reply = replyContent;
           msgs[idx].isRead = true;
           this.safeSetItem(this.messagesKey, msgs);
+          this.notifyMessages();
       }
   }
 
@@ -409,6 +502,7 @@ class MockDBService {
       let msgs = await this.getMessages();
       msgs = msgs.filter(m => m.id !== id);
       this.safeSetItem(this.messagesKey, msgs);
+      this.notifyMessages();
   }
 }
 
