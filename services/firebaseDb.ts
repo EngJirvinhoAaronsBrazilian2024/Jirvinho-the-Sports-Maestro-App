@@ -1,5 +1,9 @@
-import firebase from "firebase/app";
+
 import { auth, db } from "./firebaseConfig";
+import { 
+  collection, doc, addDoc, updateDoc, deleteDoc, 
+  onSnapshot, query, orderBy, where, setDoc, getDocs, increment 
+} from "firebase/firestore";
 import { Tip, TipStatus, NewsPost, User, UserRole, Message, Slide } from '../types';
 
 class FirebaseDBService {
@@ -14,14 +18,17 @@ class FirebaseDBService {
 
         // Check user profile in Firestore
         try {
-           const snapshot = await db.collection("users").where("uid", "==", firebaseUser.uid).get();
+           const usersRef = collection(db, "users");
+           const q = query(usersRef, where("uid", "==", firebaseUser.uid));
+           const snapshot = await getDocs(q);
+           
            if (!snapshot.empty) {
                const userDocData = snapshot.docs[0].data();
                role = userDocData.role || UserRole.USER;
                displayName = userDocData.displayName || displayName;
            } else {
                // Create if missing (e.g. first login)
-               await db.collection("users").doc(firebaseUser.uid).set({
+               await setDoc(doc(db, "users", firebaseUser.uid), {
                    uid: firebaseUser.uid,
                    email: firebaseUser.email,
                    role: UserRole.USER,
@@ -67,7 +74,7 @@ class FirebaseDBService {
         await user.updateProfile({ displayName });
         
         // Create user document
-        await db.collection("users").doc(user.uid).set({
+        await setDoc(doc(db, "users", user.uid), {
             uid: user.uid,
             email: user.email,
             displayName: displayName,
@@ -91,21 +98,24 @@ class FirebaseDBService {
   // --- REAL-TIME SUBSCRIPTIONS ---
 
   subscribeToTips(callback: (tips: Tip[]) => void) {
-      return db.collection("tips").orderBy("createdAt", "desc").onSnapshot((snapshot) => {
+      const q = query(collection(db, "tips"), orderBy("createdAt", "desc"));
+      return onSnapshot(q, (snapshot) => {
           const tips = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Tip));
           callback(tips);
       });
   }
 
   subscribeToNews(callback: (news: NewsPost[]) => void) {
-      return db.collection("news").orderBy("createdAt", "desc").onSnapshot((snapshot) => {
+      const q = query(collection(db, "news"), orderBy("createdAt", "desc"));
+      return onSnapshot(q, (snapshot) => {
           const news = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as NewsPost));
           callback(news);
       });
   }
 
   subscribeToSlides(callback: (slides: Slide[]) => void) {
-      return db.collection("slides").orderBy("createdAt", "desc").onSnapshot((snapshot) => {
+      const q = query(collection(db, "slides"), orderBy("createdAt", "desc"));
+      return onSnapshot(q, (snapshot) => {
           const slides = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Slide));
           callback(slides);
       });
@@ -114,22 +124,23 @@ class FirebaseDBService {
   subscribeToMessages(user: User, callback: (msgs: Message[]) => void) {
       let q;
       if (user.role === UserRole.ADMIN) {
-          q = db.collection("messages").orderBy("createdAt", "asc");
+          q = query(collection(db, "messages"), orderBy("createdAt", "asc"));
       } else {
           // Admin sees all, User sees theirs.
-          q = db.collection("messages").where("userId", "==", user.uid);
+          q = query(collection(db, "messages"), where("userId", "==", user.uid));
       }
 
-      return q.onSnapshot((snapshot) => {
+      return onSnapshot(q, (snapshot) => {
           const msgs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message));
-          // Sort explicitly to ensure order
+          // Client-side sort fallback if composite index missing for specific user queries
           msgs.sort((a, b) => a.createdAt - b.createdAt);
           callback(msgs);
       });
   }
 
   subscribeToAllUsers(callback: (users: User[]) => void) {
-      return db.collection("users").onSnapshot((snapshot) => {
+      const q = query(collection(db, "users"));
+      return onSnapshot(q, (snapshot) => {
           const users = snapshot.docs.map(doc => ({ ...doc.data() } as User));
           callback(users);
       });
@@ -138,7 +149,7 @@ class FirebaseDBService {
   // --- ACTION METHODS (CRUD) ---
 
   async addTip(tip: Omit<Tip, 'id' | 'createdAt' | 'status' | 'votes'>): Promise<void> {
-    await db.collection("tips").add({
+    await addDoc(collection(db, "tips"), {
         ...tip,
         status: TipStatus.PENDING,
         votes: { agree: 0, disagree: 0 },
@@ -148,40 +159,41 @@ class FirebaseDBService {
 
   async updateTip(tip: Tip): Promise<void> {
     const { id, ...data } = tip;
-    await db.collection("tips").doc(id).update(data);
+    await updateDoc(doc(db, "tips", id), data);
   }
 
   async voteOnTip(id: string, type: 'agree' | 'disagree'): Promise<void> {
-    await db.collection("tips").doc(id).update({
-        [`votes.${type}`]: firebase.firestore.FieldValue.increment(1)
+    // We use the 'increment' function imported from firebase/firestore
+    await updateDoc(doc(db, "tips", id), {
+        [`votes.${type}`]: increment(1)
     });
   }
 
   async deleteTip(id: string): Promise<void> {
-    await db.collection("tips").doc(id).delete();
+    await deleteDoc(doc(db, "tips", id));
   }
 
   async settleTip(id: string, status: TipStatus, score?: string): Promise<void> {
     const updateData: any = { status };
     if (score) updateData.resultScore = score;
-    await db.collection("tips").doc(id).update(updateData);
+    await updateDoc(doc(db, "tips", id), updateData);
   }
 
   async addNews(post: Omit<NewsPost, 'id' | 'createdAt'>): Promise<void> {
-    await db.collection("news").add({ ...post, createdAt: Date.now() });
+    await addDoc(collection(db, "news"), { ...post, createdAt: Date.now() });
   }
 
   async updateNews(post: NewsPost): Promise<void> {
     const { id, ...data } = post;
-    await db.collection("news").doc(id).update(data);
+    await updateDoc(doc(db, "news", id), data);
   }
 
   async deleteNews(id: string): Promise<void> {
-    await db.collection("news").doc(id).delete();
+    await deleteDoc(doc(db, "news", id));
   }
 
   async addSlide(slide: Partial<Slide>): Promise<void> {
-      await db.collection("slides").add({ 
+      await addDoc(collection(db, "slides"), { 
           image: slide.image || '', 
           title: slide.title || '', 
           subtitle: slide.subtitle || '', 
@@ -191,19 +203,19 @@ class FirebaseDBService {
 
   async updateSlide(slide: Slide): Promise<void> {
       const { id, ...data } = slide;
-      await db.collection("slides").doc(id).update(data);
+      await updateDoc(doc(db, "slides", id), data);
   }
 
   async deleteSlide(id: string): Promise<void> {
-      await db.collection("slides").doc(id).delete();
+      await deleteDoc(doc(db, "slides", id));
   }
 
   async updateUserRole(uid: string, newRole: UserRole): Promise<void> {
-      await db.collection("users").doc(uid).update({ role: newRole });
+      await updateDoc(doc(db, "users", uid), { role: newRole });
   }
 
   async deleteUser(uid: string): Promise<void> {
-      await db.collection("users").doc(uid).delete();
+      await deleteDoc(doc(db, "users", uid));
   }
 
   async sendMessage(userId: string, userName: string, content: string): Promise<Message | null> {
@@ -214,19 +226,19 @@ class FirebaseDBService {
           createdAt: Date.now(),
           isRead: false
       };
-      const ref = await db.collection("messages").add(msgData);
+      const ref = await addDoc(collection(db, "messages"), msgData);
       return { id: ref.id, ...msgData };
   }
 
   async replyToMessage(messageId: string, replyContent: string): Promise<void> {
-      await db.collection("messages").doc(messageId).update({
+      await updateDoc(doc(db, "messages", messageId), {
           reply: replyContent,
           isRead: true
       });
   }
 
   async deleteMessage(id: string): Promise<void> {
-      await db.collection("messages").doc(id).delete();
+      await deleteDoc(doc(db, "messages", id));
   }
 }
 

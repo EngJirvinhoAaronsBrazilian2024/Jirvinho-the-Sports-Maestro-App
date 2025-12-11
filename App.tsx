@@ -8,6 +8,7 @@ import { TipCard } from './components/TipCard';
 import { StatsWidget } from './components/StatsWidget';
 import { ImageSlider } from './components/ImageSlider';
 import { LiveScoreBoard } from './components/LiveScoreBoard';
+import { ImageCropper } from './components/ImageCropper';
 import { 
   PlayCircle, Lock, Mail, ChevronRight, Plus, Trash2, Save, FileText, Check, X, 
   Smartphone, TrendingUp, Award, Target, UserPlus, XCircle, Trophy, 
@@ -102,6 +103,10 @@ export const App: React.FC = () => {
   
   const [newNews, setNewNews] = useState<Partial<NewsPost>>({ title: '', category: 'Football', source: '', body: '', imageUrl: '', videoUrl: '', matchDate: '' });
   const [newSlide, setNewSlide] = useState<Partial<Slide>>({ title: '', subtitle: '', image: '' });
+  
+  // Image Cropping State
+  const [croppingImage, setCroppingImage] = useState<string | null>(null);
+  const [cropCallback, setCropCallback] = useState<((base64: string) => void) | null>(null);
   
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -319,20 +324,32 @@ export const App: React.FC = () => {
       if (adminPanel) adminPanel.scrollIntoView({ behavior: 'smooth' });
   }
 
-  // --- Image Upload Helper ---
+  // --- Image Upload Helper & Cropper ---
+  
+  // This opens the cropper
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, callback: (base64: string) => void) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 2 * 1024 * 1024) {
-          alert("File size too large! Please upload under 2MB.");
-          return;
-      }
       const reader = new FileReader();
       reader.onloadend = () => {
-        callback(reader.result as string);
+        // Set state to open modal
+        setCroppingImage(reader.result as string);
+        setCropCallback(() => callback); 
+        // We use a function callback updater to correctly store the function
       };
       reader.readAsDataURL(file);
+      // Reset input value to allow re-uploading same file
+      e.target.value = '';
     }
+  };
+
+  // Called when user clicks "Crop & Save" in modal
+  const handleCropComplete = (croppedBase64: string) => {
+      if (cropCallback) {
+          cropCallback(croppedBase64);
+      }
+      setCroppingImage(null);
+      setCropCallback(null);
   };
 
   const handleSaveNews = async () => {
@@ -571,6 +588,16 @@ export const App: React.FC = () => {
 
   return (
     <Layout user={user} onLogout={handleLogout} activeTab={activeTab} setActiveTab={setActiveTab}>
+        
+        {/* Render Cropper Modal if active */}
+        {croppingImage && (
+            <ImageCropper 
+                imageSrc={croppingImage} 
+                aspect={16 / 9} 
+                onCancel={() => { setCroppingImage(null); setCropCallback(null); }}
+                onCropComplete={handleCropComplete}
+            />
+        )}
         
         {/* --- DASHBOARD TAB --- */}
         {activeTab === 'dashboard' && (
@@ -911,17 +938,18 @@ export const App: React.FC = () => {
                             </h3>
                             <div className="space-y-6">
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">Image URL (or Base64)</label>
+                                    <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">Image URL (or Upload & Crop)</label>
                                     <div className="flex gap-3">
                                         <input 
                                             type="text" 
                                             className="flex-1 bg-slate-950 border border-slate-800 rounded-xl p-4 text-white text-sm focus:border-brazil-green focus:outline-none transition-colors"
                                             value={newSlide.image || ''}
                                             onChange={(e) => setNewSlide({...newSlide, image: e.target.value})}
-                                            placeholder="https://..."
+                                            placeholder="https://... or upload"
                                         />
                                         <label className="bg-slate-800 hover:bg-slate-700 text-white px-6 rounded-xl flex items-center cursor-pointer transition-colors border border-white/5">
                                             <UploadCloud size={20} />
+                                            {/* Update: Handle upload via cropping flow */}
                                             <input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, (val) => setNewSlide({...newSlide, image: val}))} />
                                         </label>
                                     </div>

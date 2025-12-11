@@ -15,7 +15,9 @@
     "recharts": "^3.5.1",
     "react-dom": "^19.2.0",
     "@supabase/supabase-js": "^2.86.0",
-    "firebase": "^12.6.0"
+    "firebase": "^12.6.0",
+    "react-easy-crop": "5.0.4",
+    "tslib": "2.6.2"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
