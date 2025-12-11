@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { User, UserRole, Tip, NewsPost, MaestroStats, TipStatus, TipCategory, TipLeg, Message, Slide } from './types';
-// SWITCHED TO LOCAL DB SERVICE
-import { dbService } from './services/mockDb'; 
+// SWITCHED TO FIREBASE SERVICE
+import { dbService } from './services/firebaseDb'; 
 import { generateMatchAnalysis, checkBetResult } from './services/geminiService';
 import { Layout } from './components/Layout';
 import { TipCard } from './components/TipCard';
@@ -220,29 +220,18 @@ export const App: React.FC = () => {
       } else if (authMode === 'signup') {
         try {
           await dbService.signUp(email, password, displayName);
-          const u = await dbService.getCurrentUser();
-          if (!u) {
-             try {
-                await dbService.login(email, password);
-             } catch (loginErr) {
-                 setAuthError('Account created! Please check email.');
-                 setAuthMode('login');
-             }
-          }
+          // Wait a moment for auth state to propagate or handle login immediately
+          // Firebase listener usually picks this up
         } catch (signUpError: any) {
            const errStr = (signUpError.message || '').toLowerCase();
-           if (errStr.includes('already registered') || errStr.includes('unique constraint') || errStr.includes('already exists')) {
+           if (errStr.includes('already-in-use') || errStr.includes('already exists')) {
               try {
                   await dbService.login(email, password);
               } catch (loginErr: any) {
-                  if (loginErr.message?.toLowerCase().includes('invalid login credentials')) {
-                      setAuthError('Account exists. Incorrect password.');
-                  } else {
-                      setAuthError(loginErr.message || "Login failed.");
-                  }
+                  setAuthError(loginErr.message || "Account exists. Login failed.");
               }
            } else {
-              throw signUpError;
+              setAuthError(signUpError.message);
            }
         }
       } else {
