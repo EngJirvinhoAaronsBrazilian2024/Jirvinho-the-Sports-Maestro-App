@@ -1,9 +1,6 @@
-
 import firebase from "firebase/app";
-import "firebase/auth";
-import "firebase/firestore";
 import { auth, db } from "./firebaseConfig";
-import { Tip, TipStatus, NewsPost, User, UserRole, MaestroStats, Message, Slide } from '../types';
+import { Tip, TipStatus, NewsPost, User, UserRole, Message, Slide } from '../types';
 
 class FirebaseDBService {
   
@@ -15,23 +12,24 @@ class FirebaseDBService {
         let role = UserRole.USER;
         let displayName = firebaseUser.displayName || 'User';
 
+        // Check user profile in Firestore
         try {
-            const userDoc = await db.collection("users").doc(firebaseUser.uid).get();
-            if (userDoc.exists) {
-                const userData = userDoc.data();
-                role = userData?.role || UserRole.USER;
-                if (userData?.displayName) displayName = userData.displayName;
-            } else {
-                await db.collection("users").doc(firebaseUser.uid).set({
-                    email: firebaseUser.email,
-                    role: UserRole.USER,
-                    displayName: displayName,
-                    uid: firebaseUser.uid
-                });
-            }
-        } catch (e) {
-            console.error("Error fetching user role:", e);
-        }
+           const snapshot = await db.collection("users").where("uid", "==", firebaseUser.uid).get();
+           if (!snapshot.empty) {
+               const userDocData = snapshot.docs[0].data();
+               role = userDocData.role || UserRole.USER;
+               displayName = userDocData.displayName || displayName;
+           } else {
+               // Create if missing (e.g. first login)
+               await db.collection("users").doc(firebaseUser.uid).set({
+                   uid: firebaseUser.uid,
+                   email: firebaseUser.email,
+                   role: UserRole.USER,
+                   displayName: displayName,
+                   createdAt: Date.now()
+               });
+           }
+        } catch (e) { console.warn("User doc fetch failed", e); }
 
         // Admin Override for owner
         if (firebaseUser.email === 'admin@jirvinho.com') role = UserRole.ADMIN;
@@ -47,18 +45,7 @@ class FirebaseDBService {
       }
     });
     
-    return { data: { subscription: { unsubscribe } } };
-  }
-
-  async getCurrentUser(): Promise<User | null> {
-    const firebaseUser = auth.currentUser;
-    if (!firebaseUser) return null;
-    return {
-        uid: firebaseUser.uid,
-        email: firebaseUser.email!,
-        role: UserRole.USER,
-        displayName: firebaseUser.displayName || 'User'
-    };
+    return unsubscribe;
   }
 
   async login(email: string, password: string): Promise<User> {
@@ -75,19 +62,22 @@ class FirebaseDBService {
   async signUp(email: string, password: string, displayName: string): Promise<User> {
     const userCredential = await auth.createUserWithEmailAndPassword(email, password);
     const user = userCredential.user;
-    if (!user) throw new Error("Signup failed");
     
-    await user.updateProfile({ displayName });
-
-    await db.collection("users").doc(user.uid).set({
-        uid: user.uid,
-        email: user.email,
-        displayName: displayName,
-        role: UserRole.USER,
-        createdAt: Date.now()
-    });
-
-    return { uid: user.uid, email: email, role: UserRole.USER, displayName };
+    if (user) {
+        await user.updateProfile({ displayName });
+        
+        // Create user document
+        await db.collection("users").doc(user.uid).set({
+            uid: user.uid,
+            email: user.email,
+            displayName: displayName,
+            role: UserRole.USER,
+            createdAt: Date.now()
+        });
+        
+        return { uid: user.uid, email: email, role: UserRole.USER, displayName };
+    }
+    throw new Error("Signup failed");
   }
 
   async logout(): Promise<void> {
@@ -98,38 +88,54 @@ class FirebaseDBService {
     await auth.sendPasswordResetEmail(email);
   }
 
-  // --- USERS (Admin) ---
+  // --- REAL-TIME SUBSCRIPTIONS ---
 
-  async getAllUsers(): Promise<User[]> {
-      const snapshot = await db.collection("users").get();
-      return snapshot.docs.map(doc => ({
-          uid: doc.id,
-          ...doc.data()
-      } as User));
+  subscribeToTips(callback: (tips: Tip[]) => void) {
+      return db.collection("tips").orderBy("createdAt", "desc").onSnapshot((snapshot) => {
+          const tips = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Tip));
+          callback(tips);
+      });
   }
 
-  async updateUserRole(uid: string, newRole: UserRole): Promise<void> {
-      await db.collection("users").doc(uid).update({ role: newRole });
+  subscribeToNews(callback: (news: NewsPost[]) => void) {
+      return db.collection("news").orderBy("createdAt", "desc").onSnapshot((snapshot) => {
+          const news = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as NewsPost));
+          callback(news);
+      });
   }
 
-  async deleteUser(uid: string): Promise<void> {
-      await db.collection("users").doc(uid).delete();
+  subscribeToSlides(callback: (slides: Slide[]) => void) {
+      return db.collection("slides").orderBy("createdAt", "desc").onSnapshot((snapshot) => {
+          const slides = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Slide));
+          callback(slides);
+      });
   }
 
-  // --- TIPS ---
+  subscribeToMessages(user: User, callback: (msgs: Message[]) => void) {
+      let q;
+      if (user.role === UserRole.ADMIN) {
+          q = db.collection("messages").orderBy("createdAt", "asc");
+      } else {
+          // Admin sees all, User sees theirs.
+          q = db.collection("messages").where("userId", "==", user.uid);
+      }
 
-  async getTips(): Promise<Tip[]> {
-    try {
-        const snapshot = await db.collection("tips").orderBy("createdAt", "desc").get();
-        return snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-        } as Tip));
-    } catch (e) {
-        console.error("Error fetching tips:", e);
-        return [];
-    }
+      return q.onSnapshot((snapshot) => {
+          const msgs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message));
+          // Sort explicitly to ensure order
+          msgs.sort((a, b) => a.createdAt - b.createdAt);
+          callback(msgs);
+      });
   }
+
+  subscribeToAllUsers(callback: (users: User[]) => void) {
+      return db.collection("users").onSnapshot((snapshot) => {
+          const users = snapshot.docs.map(doc => ({ ...doc.data() } as User));
+          callback(users);
+      });
+  }
+
+  // --- ACTION METHODS (CRUD) ---
 
   async addTip(tip: Omit<Tip, 'id' | 'createdAt' | 'status' | 'votes'>): Promise<void> {
     await db.collection("tips").add({
@@ -161,40 +167,6 @@ class FirebaseDBService {
     await db.collection("tips").doc(id).update(updateData);
   }
 
-  // --- STATS ---
-
-  async getStats(): Promise<MaestroStats> {
-    try {
-        const snapshot = await db.collection("tips").get();
-        const tips = snapshot.docs.map(d => d.data() as Tip);
-        
-        const settledTips = tips.filter(t => t.status !== TipStatus.PENDING);
-        const totalTips = settledTips.length;
-        const wonTips = settledTips.filter(t => t.status === TipStatus.WON).length;
-        const winRate = totalTips > 0 ? parseFloat(((wonTips / totalTips) * 100).toFixed(1)) : 0;
-        
-        const streak = settledTips
-            .sort((a, b) => b.createdAt - a.createdAt)
-            .slice(0, 10)
-            .map(t => t.status);
-
-        return { winRate, totalTips, wonTips, streak };
-    } catch (e) {
-        return { winRate: 0, totalTips: 0, wonTips: 0, streak: [] };
-    }
-  }
-
-  // --- NEWS ---
-
-  async getNews(): Promise<NewsPost[]> {
-    try {
-        const snapshot = await db.collection("news").orderBy("createdAt", "desc").get();
-        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as NewsPost));
-    } catch (e) {
-        return [];
-    }
-  }
-
   async addNews(post: Omit<NewsPost, 'id' | 'createdAt'>): Promise<void> {
     await db.collection("news").add({ ...post, createdAt: Date.now() });
   }
@@ -206,17 +178,6 @@ class FirebaseDBService {
 
   async deleteNews(id: string): Promise<void> {
     await db.collection("news").doc(id).delete();
-  }
-
-  // --- SLIDES ---
-
-  async getSlides(): Promise<Slide[]> {
-      try {
-        const snapshot = await db.collection("slides").orderBy("createdAt", "desc").get();
-        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Slide));
-      } catch (e) {
-        return [];
-      }
   }
 
   async addSlide(slide: Partial<Slide>): Promise<void> {
@@ -237,25 +198,12 @@ class FirebaseDBService {
       await db.collection("slides").doc(id).delete();
   }
 
-  // --- MESSAGES ---
-
-  async getMessages(): Promise<Message[]> {
-      try {
-        const snapshot = await db.collection("messages").orderBy("createdAt", "asc").get();
-        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message));
-      } catch(e) {
-        return [];
-      }
+  async updateUserRole(uid: string, newRole: UserRole): Promise<void> {
+      await db.collection("users").doc(uid).update({ role: newRole });
   }
 
-  async getUserMessages(userId: string): Promise<Message[]> {
-      try {
-        const snapshot = await db.collection("messages").where("userId", "==", userId).get();
-        const msgs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message));
-        return msgs.sort((a, b) => a.createdAt - b.createdAt);
-      } catch(e) {
-        return [];
-      }
+  async deleteUser(uid: string): Promise<void> {
+      await db.collection("users").doc(uid).delete();
   }
 
   async sendMessage(userId: string, userName: string, content: string): Promise<Message | null> {

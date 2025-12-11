@@ -1,7 +1,6 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { User, UserRole, Tip, NewsPost, MaestroStats, TipStatus, TipCategory, TipLeg, Message, Slide } from './types';
-// SWITCHED TO FIREBASE SERVICE
 import { dbService } from './services/firebaseDb'; 
 import { generateMatchAnalysis, checkBetResult } from './services/geminiService';
 import { Layout } from './components/Layout';
@@ -113,91 +112,59 @@ export const App: React.FC = () => {
   
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  // Track IDs of messages currently being replied to, to prevent polling overwrites
-  const pendingActionsRef = useRef<Set<string>>(new Set());
 
-  // --- Optimized Fetch Data ---
-  const fetchData = useCallback(async (currentUser: User | null) => {
-    try {
-        const [tipsData, newsData, statsData, slidesData] = await Promise.all([
-            dbService.getTips(),
-            dbService.getNews(),
-            dbService.getStats(),
-            dbService.getSlides()
-        ]);
-        
-        setTips(tipsData);
-        setNews(newsData);
-        setStats(statsData);
-        setSlides(slidesData);
-
-        if (currentUser) {
-            const serverMsgs = currentUser.role === UserRole.ADMIN 
-                ? await dbService.getMessages() 
-                : await dbService.getUserMessages(currentUser.uid);
-            
-            // SMART MERGE: 
-            // We must merge server data with local optimistic state to prevent flickering.
-            setMessages(prev => {
-                const serverIds = new Set(serverMsgs.map(m => m.id));
-                const pendingTempMessages = prev.filter(m => !serverIds.has(m.id));
-                
-                const mergedServerMessages = serverMsgs.map(serverMsg => {
-                    if (pendingActionsRef.current.has(serverMsg.id)) {
-                        const localMsg = prev.find(p => p.id === serverMsg.id);
-                        if (localMsg) {
-                            return { ...serverMsg, reply: localMsg.reply }; // Keep optimistic reply
-                        }
-                    }
-                    return serverMsg;
-                });
-
-                return [...mergedServerMessages, ...pendingTempMessages];
-            });
-
-            if (currentUser.role === UserRole.ADMIN) {
-                const uList = await dbService.getAllUsers();
-                setAllUsers(uList);
-            }
-        }
-    } catch (error) {
-        console.error("Error fetching data:", error);
-    }
-  }, []); // Stable callback with no dependencies
-
-  // --- Initialization ---
+  // --- Subscriptions & Initialization ---
+  
   useEffect(() => {
-    let mounted = true;
-
-    // Subscribe to auth changes
-    const { data: authListener } = dbService.onAuthStateChange(async (u) => {
-        if (!mounted) return;
-        
+    // Auth Listener
+    const unsubscribeAuth = dbService.onAuthStateChange((u) => {
         setUser(u);
-        
-        if (u) {
-             fetchData(u);
-        } else {
-             setTips([]); setNews([]); setSlides([]); setStats({winRate:0, totalTips:0, wonTips:0, streak:[]});
-        }
         setIsInitializing(false);
     });
+    return () => unsubscribeAuth();
+  }, []);
+
+  useEffect(() => {
+    if (!user) {
+        setTips([]); setNews([]); setSlides([]); setMessages([]); setStats({winRate:0, totalTips:0, wonTips:0, streak:[]});
+        return;
+    }
+
+    // Data Subscriptions
+    const unsubTips = dbService.subscribeToTips((data) => setTips(data));
+    const unsubNews = dbService.subscribeToNews((data) => setNews(data));
+    const unsubSlides = dbService.subscribeToSlides((data) => setSlides(data));
+    const unsubMessages = dbService.subscribeToMessages(user, (data) => setMessages(data));
+    
+    let unsubUsers = () => {};
+    if (user.role === UserRole.ADMIN) {
+        unsubUsers = dbService.subscribeToAllUsers((data) => setAllUsers(data));
+    }
 
     return () => {
-        mounted = false;
-        if (authListener?.subscription) authListener.subscription.unsubscribe();
+        unsubTips();
+        unsubNews();
+        unsubSlides();
+        unsubMessages();
+        unsubUsers();
     };
-  }, [fetchData]);
+  }, [user]);
 
-  // --- Polling ---
+  // --- Stats Calculation (Derived from Tips) ---
   useEffect(() => {
-      if (!user) return;
-      // Fast polling for instant messaging feel (800ms)
-      const interval = setInterval(() => {
-          fetchData(user);
-      }, 800);
-      return () => clearInterval(interval);
-  }, [user, fetchData]);
+      const settledTips = tips.filter(t => t.status !== TipStatus.PENDING);
+      const totalTips = settledTips.length;
+      const wonTips = settledTips.filter(t => t.status === TipStatus.WON).length;
+      const winRate = totalTips > 0 ? parseFloat(((wonTips / totalTips) * 100).toFixed(1)) : 0;
+      
+      const streak = settledTips
+          .sort((a, b) => b.createdAt - a.createdAt)
+          .slice(0, 10)
+          .map(t => t.status);
+
+      setStats({ winRate, totalTips, wonTips, streak });
+  }, [tips]);
+
 
   // --- Auto Scroll for Chat ---
   useEffect(() => {
@@ -220,8 +187,6 @@ export const App: React.FC = () => {
       } else if (authMode === 'signup') {
         try {
           await dbService.signUp(email, password, displayName);
-          // Wait a moment for auth state to propagate or handle login immediately
-          // Firebase listener usually picks this up
         } catch (signUpError: any) {
            const errStr = (signUpError.message || '').toLowerCase();
            if (errStr.includes('already-in-use') || errStr.includes('already exists')) {
@@ -245,21 +210,17 @@ export const App: React.FC = () => {
   };
 
   const handleLogout = async () => {
-    setUser(null);
-    setTips([]);
-    setNews([]);
-    setMessages([]);
-    setActiveTab('dashboard');
     try {
         await dbService.logout();
     } catch(e) {
         console.error("Signout error:", e);
     }
+    setUser(null);
+    setActiveTab('dashboard');
   };
 
   const handleVote = async (id: string, type: 'agree' | 'disagree') => {
     await dbService.voteOnTip(id, type);
-    if (user) fetchData(user);
   };
 
   // --- Admin Handlers ---
@@ -312,7 +273,6 @@ export const App: React.FC = () => {
             category: TipCategory.SINGLE,
             teams: '', league: LEAGUES[0], prediction: '', odds: 1.50, confidence: 'Medium', sport: 'Football', bettingCode: '', legs: [], kickoffTime: '', analysis: ''
           });
-          if (user) await fetchData(user);
       } catch (e: any) {
           console.error("Save Error:", e);
           alert("Error saving tip: " + (e.message || "Unknown Error. Check permissions."));
@@ -324,7 +284,6 @@ export const App: React.FC = () => {
   const handleDeleteTip = async (id: string) => {
       if (window.confirm('Delete this tip?')) {
           await dbService.deleteTip(id);
-          fetchData(user); // Force Refresh
       }
   };
 
@@ -332,12 +291,11 @@ export const App: React.FC = () => {
       let finalScore = score;
       if (!finalScore || finalScore === '1-0' || finalScore === '0-1') {
          const input = window.prompt(`Enter Final Score for this ${status} tip (e.g. 2-1):`, "");
-         if (input === null) return; // User cancelled
+         if (input === null) return; 
          finalScore = input || (status === TipStatus.WON ? "Win" : "Loss");
       }
       
       await dbService.settleTip(id, status, finalScore);
-      if (user) fetchData(user);
   };
 
   const handleVerifyResult = async (tip: Tip) => {
@@ -347,7 +305,6 @@ export const App: React.FC = () => {
           const confirmMsg = `AI Verification Result:\nStatus: ${result.status}\nScore: ${result.score}\nReason: ${result.reason}\n\nUpdate this tip?`;
           if (window.confirm(confirmMsg)) {
               await dbService.settleTip(tip.id, result.status as TipStatus, result.score);
-              if (user) fetchData(user);
           }
       } else {
           alert(`Could not verify automatically.\nReason: ${result.reason}`);
@@ -389,9 +346,7 @@ export const App: React.FC = () => {
         } else {
              await dbService.addNews(newNews as Omit<NewsPost, 'id' | 'createdAt'>);
         }
-        
         setNewNews({ title: '', category: 'Football', source: '', body: '', imageUrl: '', videoUrl: '', matchDate: '' });
-        if (user) await fetchData(user);
       } catch (e: any) {
           alert("Error: " + e.message);
       } finally {
@@ -409,7 +364,6 @@ export const App: React.FC = () => {
   const handleDeleteNews = async (id: string) => {
       if (window.confirm('Delete this news?')) {
           await dbService.deleteNews(id);
-          fetchData(user); // Force refresh
       }
   };
 
@@ -428,9 +382,7 @@ export const App: React.FC = () => {
         } else {
              await dbService.addSlide(newSlide);
         }
-        
         setNewSlide({ title: '', subtitle: '', image: '' });
-        if (user) await fetchData(user);
       } catch (e: any) {
           alert("Error: " + e.message);
       } finally {
@@ -448,7 +400,6 @@ export const App: React.FC = () => {
   const handleDeleteSlide = async (id: string) => {
       if (window.confirm("Delete this slide?")) {
           await dbService.deleteSlide(id);
-          fetchData(user); // Force refresh
       }
   };
 
@@ -462,38 +413,20 @@ export const App: React.FC = () => {
               await dbService.deleteUser(uid);
           }
       }
-      fetchData(user); // Force refresh
   };
 
   const handleSendMessage = async () => {
       if (!contactMessage.trim() || !user) return;
       
       const msgContent = contactMessage;
-      setContactMessage(''); // Clear input immediately
+      setContactMessage(''); 
       
-      // Optimistic update
-      const tempId = Date.now().toString();
-      const optimisticMsg: Message = {
-          id: tempId,
-          userId: user.uid,
-          userName: user.displayName || 'User',
-          content: msgContent,
-          createdAt: Date.now(),
-          isRead: false
-      };
-      
-      setMessages(prev => [...prev, optimisticMsg]); // Append to end
-
+      // No Optimistic update needed - Firestore is fast enough and will push back immediately
       try {
-        const savedMsg = await dbService.sendMessage(user.uid, user.displayName || 'User', msgContent);
-        if (savedMsg) {
-            setMessages(prev => prev.map(m => m.id === tempId ? savedMsg : m));
-        } else {
-            await fetchData(user);
-        }
+        await dbService.sendMessage(user.uid, user.displayName || 'User', msgContent);
       } catch (e: any) {
           console.error(e);
-          setMessages(prev => prev.filter(m => m.id !== tempId));
+          alert("Message failed to send");
       }
   };
 
@@ -501,39 +434,28 @@ export const App: React.FC = () => {
       const text = replyText[msgId];
       if (!text) return;
       
-      pendingActionsRef.current.add(msgId);
       setReplyText(prev => ({ ...prev, [msgId]: '' }));
-      setMessages(prev => prev.map(m => m.id === msgId ? { ...m, reply: text, isRead: true } : m));
 
       try {
           await dbService.replyToMessage(msgId, text);
-          if (user) await fetchData(user);
       } catch (e: any) {
           console.error("Reply failed", e);
-          setMessages(prev => prev.map(m => m.id === msgId ? { ...m, reply: undefined, isRead: false } : m));
           setReplyText(prev => ({ ...prev, [msgId]: text }));
-      } finally {
-          pendingActionsRef.current.delete(msgId);
       }
   };
   
   const handleDeleteMessage = async (msgId: string) => {
       if (window.confirm("Delete this message?")) {
-          setMessages(prev => prev.filter(m => m.id !== msgId));
           try {
               await dbService.deleteMessage(msgId);
-              fetchData(user); 
           } catch(e) {
               console.error("Failed to delete", e);
               alert("Failed to delete message.");
-              fetchData(user);
           }
       }
   };
 
   // --- RENDER HELPERS ---
-
-  // ... (Initialization and Auth Logic remains same)
 
   if (isInitializing) {
     return (
