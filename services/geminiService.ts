@@ -1,33 +1,16 @@
+
 import { GoogleGenAI } from "@google/genai";
 import { Tip } from "../types";
 
-// SAFELY retrieve API Key. 
-// Checks if 'process' exists before accessing it to prevent browser crashes (ReferenceError).
-const getApiKey = () => {
-  try {
-    // @ts-ignore
-    if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
-      // @ts-ignore
-      return process.env.API_KEY;
-    }
-  } catch (e) {
-    // Ignore errors in environments where process is not defined
-  }
-  return '';
-};
-
-const apiKey = getApiKey();
+// The API key is obtained exclusively from the environment variable process.env.API_KEY per instructions.
 
 export const generateMatchAnalysis = async (teams: string, league: string): Promise<string> => {
-  if (!apiKey) {
-    // Graceful fallback if no API key is present
-    return `(Analysis) ${teams} in ${league} is set to be a highly contested match. Both sides have everything to play for. Expect tactical discipline and moments of individual brilliance.`;
-  }
-
+  // Fix: Initialize GoogleGenAI directly with process.env.API_KEY and removed key existence check per guidelines
   try {
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    // Using gemini-3-flash-preview for basic text tasks as per guidelines
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3-flash-preview',
       contents: `Provide a short, punchy, expert betting analysis (max 50 words) for the match: ${teams} in the ${league}. Focus on form and key factors.`,
     });
     
@@ -39,12 +22,9 @@ export const generateMatchAnalysis = async (teams: string, league: string): Prom
 };
 
 export const checkBetResult = async (tip: Tip): Promise<{ status: string, score: string, reason: string }> => {
-  if (!apiKey) {
-      return { status: 'UNKNOWN', score: '?', reason: 'API Key missing. Check manually.' };
-  }
-
+  // Fix: Initialize GoogleGenAI directly with process.env.API_KEY and removed key existence check per guidelines
   try {
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     // Construct a specific prompt for result verification
     const prompt = `
@@ -60,8 +40,9 @@ export const checkBetResult = async (tip: Tip): Promise<{ status: string, score:
       STATUS: [WON/LOST/VOID] | SCORE: [Score] | REASON: [Reason]
     `;
 
+    // Using gemini-3-flash-preview as it is suitable for this reasoning task with search
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3-flash-preview',
       contents: prompt,
       config: {
         tools: [{ googleSearch: {} }] // Enable Google Search to get real-time results

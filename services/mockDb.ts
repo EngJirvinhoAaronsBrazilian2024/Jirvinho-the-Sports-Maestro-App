@@ -43,6 +43,7 @@ class MockDBService {
   private messagesKey = 'jirvinho_messages';
 
   // Listeners for "Real-time" updates
+  private authListeners: ((user: User | null) => void)[] = [];
   private tipListeners: ((tips: Tip[]) => void)[] = [];
   private newsListeners: ((news: NewsPost[]) => void)[] = [];
   private slideListeners: ((slides: Slide[]) => void)[] = [];
@@ -75,7 +76,6 @@ class MockDBService {
     }
 
     if (!localStorage.getItem(this.messagesKey)) {
-        // Seed some initial messages for testing
         const initialMessages: Message[] = [
             {
                 id: 'msg-1',
@@ -114,6 +114,10 @@ class MockDBService {
   }
 
   // --- NOTIFICATION HELPERS ---
+
+  private notifyAuth(user: User | null) {
+    this.authListeners.forEach(cb => cb(user));
+  }
   
   private async notifyTips() {
       const tips = await this.getTips();
@@ -149,13 +153,16 @@ class MockDBService {
   // --- AUTH ---
 
   onAuthStateChange(callback: (user: User | null) => void) {
+    this.authListeners.push(callback);
     const stored = localStorage.getItem(this.currentUserKey);
     if (stored) {
       callback(JSON.parse(stored));
     } else {
       callback(null);
     }
-    return () => {}; // Unsubscribe function
+    return () => {
+      this.authListeners = this.authListeners.filter(cb => cb !== callback);
+    };
   }
 
   async login(email: string, password: string): Promise<User> {
@@ -164,14 +171,12 @@ class MockDBService {
     let users = await this.getAllUsers();
     let user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
 
-    // Backdoor for Admin if not in list
     if (!user && email.toLowerCase() === 'admin@jirvinho.com') {
         user = { uid: 'admin-123', email, role: UserRole.ADMIN, displayName: 'Maestro Admin' };
         users.push(user);
         this.safeSetItem(this.usersKey, users);
     }
 
-    // Auto-create generic user if not found (Simulation Mode for Demo)
     if (!user) {
         user = { uid: 'user-' + Date.now(), email, role: UserRole.USER, displayName: 'User' };
         users.push(user);
@@ -179,8 +184,7 @@ class MockDBService {
     }
 
     this.safeSetItem(this.currentUserKey, user);
-    // Reload not strictly needed if we handled state completely reactively, but helps reset app state for demo
-    window.location.reload(); 
+    this.notifyAuth(user);
     return user;
   }
 
@@ -197,14 +201,14 @@ class MockDBService {
     this.safeSetItem(this.usersKey, users);
     
     this.safeSetItem(this.currentUserKey, newUser);
-    window.location.reload();
+    this.notifyAuth(newUser);
     return newUser;
   }
 
   async logout(): Promise<void> {
     await this.delay(100);
     localStorage.removeItem(this.currentUserKey);
-    window.location.reload();
+    this.notifyAuth(null);
   }
 
   async resetPassword(email: string): Promise<void> {
@@ -236,13 +240,13 @@ class MockDBService {
         users[index].role = newRole;
         this.safeSetItem(this.usersKey, users);
         
-        // If updating the currently logged in user, update session too
         const stored = localStorage.getItem(this.currentUserKey);
         if (stored) {
              const currentUser = JSON.parse(stored);
              if (currentUser.uid === uid) {
                  currentUser.role = newRole;
                  this.safeSetItem(this.currentUserKey, currentUser);
+                 this.notifyAuth(currentUser);
              }
         }
         this.notifyUsers();
@@ -256,13 +260,12 @@ class MockDBService {
     this.safeSetItem(this.usersKey, users);
     this.notifyUsers();
 
-    // If deleting self
     const stored = localStorage.getItem(this.currentUserKey);
     if (stored) {
         const currentUser = JSON.parse(stored);
         if (currentUser.uid === uid) {
             localStorage.removeItem(this.currentUserKey);
-            window.location.reload();
+            this.notifyAuth(null);
         }
     }
   }
@@ -336,7 +339,6 @@ class MockDBService {
   }
 
   // --- STATS ---
-  // Stats are derived from tips in the UI mostly, but if needed:
   async getStats(): Promise<MaestroStats> {
     await this.delay(0);
     const tips = await this.getTips();
@@ -345,7 +347,6 @@ class MockDBService {
     const wonTips = settledTips.filter(t => t.status === TipStatus.WON).length;
     const winRate = totalTips > 0 ? parseFloat(((wonTips / totalTips) * 100).toFixed(1)) : 0;
     
-    // Streak: Last 10 settled
     const streak = settledTips
         .sort((a, b) => b.createdAt - a.createdAt)
         .slice(0, 10)
@@ -451,7 +452,6 @@ class MockDBService {
 
   subscribeToMessages(user: User, callback: (msgs: Message[]) => void) {
       const isOwner = user.role === UserRole.ADMIN;
-      // If admin, we listen to all. If user, we listen to own.
       const listenerObj = {
           callback,
           userId: isOwner ? undefined : user.uid

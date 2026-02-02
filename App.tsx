@@ -1,7 +1,7 @@
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { User, UserRole, Tip, NewsPost, MaestroStats, TipStatus, TipCategory, TipLeg, Message, Slide } from './types';
-// Switch to MockDB to avoid "Database not found" errors
+// Switch back to mockDb so the user's "admin@jirvinho.com" credentials work without Firebase setup
 import { dbService } from './services/mockDb'; 
 import { generateMatchAnalysis, checkBetResult } from './services/geminiService';
 import { Layout } from './components/Layout';
@@ -11,63 +11,21 @@ import { ImageSlider } from './components/ImageSlider';
 import { LiveScoreBoard } from './components/LiveScoreBoard';
 import { ImageCropper } from './components/ImageCropper';
 import { 
-  PlayCircle, Lock, Mail, ChevronRight, Plus, Trash2, Save, FileText, Check, X, 
-  Smartphone, TrendingUp, Award, Target, UserPlus, XCircle, Trophy, 
-  Flame, Eye, EyeOff, MessageSquare, Send, Globe, Newspaper, Calendar, Database, 
-  Wand2, Upload, ExternalLink, Users, Shield, ShieldAlert, Edit3, ArrowLeft, 
-  Activity, LayoutDashboard, Image as ImageIcon, UploadCloud, AlertTriangle, Sparkles,
-  List, Search, UserCog
+  Lock, Mail, ChevronRight, Plus, Trash2, Smartphone, Target, Trophy, 
+  Flame, Eye, EyeOff, MessageSquare, Send, Newspaper, 
+  Wand2, UploadCloud, Edit3, Activity, List, Search, UserCog, Sparkles, Shield, ShieldAlert,
+  BarChart3, Check, X, LayoutDashboard, Settings, Info, Calendar, Clock, Hash, Globe,
+  MoreVertical, UserCheck, UserMinus, AlertCircle, RefreshCcw
 } from 'lucide-react';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend } from 'recharts';
-
-// --- Constants ---
+import { CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, LineChart, Line } from 'recharts';
 
 const LEAGUES = [
-  "England - Premier League", "England - Championship", "England - League One", "England - League Two", "England - FA Cup", "England - EFL Cup",
-  "Spain - La Liga", "Spain - La Liga 2", "Spain - Copa del Rey",
-  "Italy - Serie A", "Italy - Serie B", "Italy - Coppa Italia",
-  "Germany - Bundesliga", "Germany - 2. Bundesliga", "Germany - DFB Pokal",
-  "France - Ligue 1", "France - Ligue 2", "France - Coupe de France",
-  "Brazil - Brasileirão Serie A", "Brazil - Brasileirão Serie B", "Brazil - Copa do Brasil", "Brazil - Paulistão", "Brazil - Carioca",
-  "International - Champions League", "International - Europa League", "International - Conference League", "International - World Cup", "International - Euro", "International - Copa America", "International - Nations League", "International - Friendlies", "International - Club World Cup",
-  "Portugal - Primeira Liga",
-  "Netherlands - Eredivisie",
-  "Turkey - Süper Lig",
-  "USA - MLS",
-  "Saudi Arabia - Pro League",
-  "Argentina - Liga Profesional",
-  "Mexico - Liga MX",
-  "Japan - J1 League",
-  "South Korea - K League 1",
-  "Australia - A-League",
-  "Scotland - Premiership",
-  "Belgium - Pro League",
-  "Switzerland - Super League",
-  "Austria - Bundesliga",
-  "Russia - Premier League",
-  "Ukraine - Premier League",
-  "Greece - Super League",
-  "Denmark - Superliga",
-  "Sweden - Allsvenskan",
-  "Norway - Eliteserien",
-  "China - Super League",
-  "India - Super League",
-  "South Africa - Premiership",
-  "Egypt - Premier League",
-  "Morocco - Botola Pro",
-  "Basketball - NBA", "Basketball - EuroLeague",
-  "American Football - NFL",
-  "Tennis - Grand Slam", "Tennis - ATP", "Tennis - WTA",
-  "Baseball - MLB",
-  "Ice Hockey - NHL",
-  "Cricket - IPL", "Cricket - World Cup", "Cricket - T20",
-  "Multiple (Accumulator)"
+  "England - Premier League", "Spain - La Liga", "Italy - Serie A", "Germany - Bundesliga", 
+  "France - Ligue 1", "Brazil - Brasileirão Serie A", "International - Champions League", 
+  "Basketball - NBA", "Tennis - Grand Slam", "Cricket - IPL", "Multiple (Accumulator)"
 ];
 
-// --- App Component ---
-
 export const App: React.FC = () => {
-  // Auth State
   const [isInitializing, setIsInitializing] = useState(true);
   const [user, setUser] = useState<User | null>(null);
   const [authMode, setAuthMode] = useState<'login' | 'signup' | 'forgot'>('login');
@@ -76,8 +34,6 @@ export const App: React.FC = () => {
   const [displayName, setDisplayName] = useState('');
   const [authError, setAuthError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-
-  // App Data State
   const [activeTab, setActiveTab] = useState('dashboard');
   const [tips, setTips] = useState<Tip[]>([]);
   const [news, setNews] = useState<NewsPost[]>([]);
@@ -85,44 +41,36 @@ export const App: React.FC = () => {
   const [stats, setStats] = useState<MaestroStats>({ winRate: 0, totalTips: 0, wonTips: 0, streak: [] });
   const [messages, setMessages] = useState<Message[]>([]);
   const [allUsers, setAllUsers] = useState<User[]>([]);
-  
-  // Dashboard Specific State
   const [mobileTab, setMobileTab] = useState<TipCategory>(TipCategory.SINGLE);
-  
-  // Admin State
   const [adminTab, setAdminTab] = useState<'overview' | 'tips' | 'news' | 'slides' | 'users' | 'messages'>('overview');
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // Edit States
   const [editingTipId, setEditingTipId] = useState<string | null>(null);
   const [editingNewsId, setEditingNewsId] = useState<string | null>(null);
   const [editingSlideId, setEditingSlideId] = useState<string | null>(null);
   
-  const [newTip, setNewTip] = useState<Partial<Tip>>({
-    category: TipCategory.SINGLE,
-    teams: '', league: LEAGUES[0], prediction: '', odds: 1.50, confidence: 'Medium', sport: 'Football', bettingCode: '', legs: [], kickoffTime: '', analysis: ''
+  // Form States
+  const [newTip, setNewTip] = useState<Partial<Tip>>({ 
+    category: TipCategory.SINGLE, teams: '', league: LEAGUES[0], prediction: '', odds: 1.50, 
+    confidence: 'Medium', sport: 'Football', bettingCode: '', legs: [], kickoffTime: '', analysis: '' 
   });
   const [multiLegInput, setMultiLegInput] = useState<TipLeg>({ teams: '', league: LEAGUES[0], prediction: '' });
-  
-  const [newNews, setNewNews] = useState<Partial<NewsPost>>({ title: '', category: 'Football', source: '', body: '', imageUrl: '', videoUrl: '', matchDate: '' });
+  const [newNews, setNewNews] = useState<Partial<NewsPost>>({ title: '', category: 'Football', body: '' });
   const [newSlide, setNewSlide] = useState<Partial<Slide>>({ title: '', subtitle: '', image: '' });
   
-  // Image Cropping State
+  // Media states
   const [croppingImage, setCroppingImage] = useState<string | null>(null);
   const [cropCallback, setCropCallback] = useState<((base64: string) => void) | null>(null);
-  
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [replyText, setReplyText] = useState<{ [key: string]: string }>({});
-
-  // User Contact State
-  const [contactMessage, setContactMessage] = useState('');
   
-  // Refs
+  // Chat states
+  const [replyText, setReplyText] = useState<{ [key: string]: string }>({});
+  const [contactMessage, setContactMessage] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // --- Subscriptions & Initialization ---
-  
   useEffect(() => {
-    // Auth Listener
     const unsubscribeAuth = dbService.onAuthStateChange((u) => {
         setUser(u);
         setIsInitializing(false);
@@ -131,1153 +79,522 @@ export const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (!user) {
-        setTips([]); setNews([]); setSlides([]); setMessages([]); setStats({winRate:0, totalTips:0, wonTips:0, streak:[]});
-        return;
-    }
-
-    // Data Subscriptions
+    if (!user) return;
     const unsubTips = dbService.subscribeToTips((data) => setTips(data));
     const unsubNews = dbService.subscribeToNews((data) => setNews(data));
     const unsubSlides = dbService.subscribeToSlides((data) => setSlides(data));
     const unsubMessages = dbService.subscribeToMessages(user, (data) => setMessages(data));
     
     let unsubUsers = () => {};
-    if (user.role === UserRole.ADMIN) {
-        unsubUsers = dbService.subscribeToAllUsers((data) => setAllUsers(data));
+    if (user.role === UserRole.ADMIN) { 
+        unsubUsers = dbService.subscribeToAllUsers((data) => setAllUsers(data)); 
     }
-
-    return () => {
-        unsubTips();
-        unsubNews();
-        unsubSlides();
-        unsubMessages();
-        unsubUsers();
-    };
+    
+    return () => { unsubTips(); unsubNews(); unsubSlides(); unsubMessages(); unsubUsers(); };
   }, [user]);
 
-  // --- Stats Calculation (Derived from Tips) ---
   useEffect(() => {
       const settledTips = tips.filter(t => t.status !== TipStatus.PENDING);
       const totalTips = settledTips.length;
       const wonTips = settledTips.filter(t => t.status === TipStatus.WON).length;
       const winRate = totalTips > 0 ? parseFloat(((wonTips / totalTips) * 100).toFixed(1)) : 0;
-      
-      const streak = settledTips
-          .sort((a, b) => b.createdAt - a.createdAt)
-          .slice(0, 10)
-          .map(t => t.status);
-
+      const streak = settledTips.sort((a, b) => b.createdAt - a.createdAt).slice(0, 10).map(t => t.status);
       setStats({ winRate, totalTips, wonTips, streak });
   }, [tips]);
 
-
-  // --- Auto Scroll for Chat ---
   useEffect(() => {
-      if (activeTab === 'contact' || (activeTab === 'admin' && adminTab === 'messages')) {
-          setTimeout(() => {
-              messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-          }, 100);
-      }
-  }, [messages.length, activeTab, adminTab]);
-
-
-  // --- Handlers ---
+    if (activeTab === 'contact' || (activeTab === 'admin' && adminTab === 'messages')) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, activeTab, adminTab]);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError('');
     try {
-      if (authMode === 'login') {
-        await dbService.login(email, password);
-      } else if (authMode === 'signup') {
-        try {
-          await dbService.signUp(email, password, displayName);
-        } catch (signUpError: any) {
-           const errStr = (signUpError.message || '').toLowerCase();
-           if (errStr.includes('already-in-use') || errStr.includes('already exists')) {
-              try {
-                  await dbService.login(email, password);
-              } catch (loginErr: any) {
-                  setAuthError(loginErr.message || "Account exists. Login failed.");
-              }
-           } else {
-              setAuthError(signUpError.message);
-           }
-        }
-      } else {
-        await dbService.resetPassword(email);
-        alert('Password reset link sent!');
-        setAuthMode('login');
-      }
-    } catch (err: any) {
-      setAuthError(err.message || "Authentication failed");
-    }
+      if (authMode === 'login') { await dbService.login(email, password); } 
+      else if (authMode === 'signup') { await dbService.signUp(email, password, displayName); } 
+      else { await dbService.resetPassword(email); setAuthMode('login'); }
+    } catch (err: any) { setAuthError(err.message || "Auth Error"); }
   };
 
-  const handleLogout = async () => {
-    try {
-        await dbService.logout();
-    } catch(e) {
-        console.error("Signout error:", e);
-    }
-    setUser(null);
-    setActiveTab('dashboard');
-  };
+  const handleLogout = () => dbService.logout();
+  const handleVote = (id: string, type: 'agree' | 'disagree') => dbService.voteOnTip(id, type);
 
-  const handleVote = async (id: string, type: 'agree' | 'disagree') => {
-    await dbService.voteOnTip(id, type);
-  };
-
-  // --- Admin Handlers ---
-
-  const handleGenerateAnalysis = async () => {
-    if (!newTip.teams || !newTip.league) {
-        alert("Please enter Teams and League first.");
-        return;
-    }
-    setIsGeneratingAI(true);
-    const analysis = await generateMatchAnalysis(newTip.teams, newTip.league);
-    setNewTip({ ...newTip, analysis });
-    setIsGeneratingAI(false);
-  };
-
-  const handleAddLeg = () => {
-    if (multiLegInput.teams && multiLegInput.prediction) {
-      setNewTip({ ...newTip, legs: [...(newTip.legs || []), multiLegInput] });
-      setMultiLegInput({ teams: '', league: LEAGUES[0], prediction: '' });
-    }
-  };
-
-  const handleRemoveLeg = (idx: number) => {
-      const updated = [...(newTip.legs || [])];
-      updated.splice(idx, 1);
-      setNewTip({ ...newTip, legs: updated });
-  };
+  // --- ADMIN ACTIONS ---
 
   const handleSaveTip = async () => {
-      if (!newTip.teams || !newTip.prediction || !newTip.odds) {
-          alert("Please fill in Teams, Prediction and Odds.");
-          return;
-      }
-      
       setIsSaving(true);
       try {
           if (editingTipId) {
-             const updatedTip = { ...newTip, id: editingTipId } as Tip;
-             await dbService.updateTip(updatedTip);
-             setEditingTipId(null);
+              await dbService.updateTip({ ...newTip, id: editingTipId } as Tip);
           } else {
-             const cleanTip = {
-                 ...newTip,
-                 kickoffTime: newTip.kickoffTime || new Date().toISOString()
-             };
-             await dbService.addTip(cleanTip as Omit<Tip, 'id' | 'createdAt' | 'status' | 'votes'>);
+              await dbService.addTip(newTip as Omit<Tip, 'id' | 'createdAt' | 'status' | 'votes'>);
           }
-          
-          setNewTip({
-            category: TipCategory.SINGLE,
-            teams: '', league: LEAGUES[0], prediction: '', odds: 1.50, confidence: 'Medium', sport: 'Football', bettingCode: '', legs: [], kickoffTime: '', analysis: ''
-          });
-      } catch (e: any) {
-          console.error("Save Error:", e);
-          alert("Error saving tip: " + (e.message || "Unknown Error. Check permissions."));
-      } finally {
-          setIsSaving(false);
-      }
+          setNewTip({ category: TipCategory.SINGLE, teams: '', league: LEAGUES[0], prediction: '', odds: 1.50, confidence: 'Medium', sport: 'Football', bettingCode: '', legs: [], kickoffTime: '', analysis: '' });
+          setEditingTipId(null);
+      } catch (e) { console.error(e); } finally { setIsSaving(false); }
   };
 
-  const handleDeleteTip = async (id: string) => {
-      if (window.confirm('Delete this tip?')) {
-          await dbService.deleteTip(id);
-      }
+  const handleAIGenerateAnalysis = async () => {
+      if (!newTip.teams || !newTip.league) return;
+      setIsGeneratingAI(true);
+      const analysis = await generateMatchAnalysis(newTip.teams, newTip.league);
+      setNewTip(prev => ({ ...prev, analysis }));
+      setIsGeneratingAI(false);
   };
 
-  const handleSettleTip = async (id: string, status: TipStatus, score: string) => {
-      let finalScore = score;
-      if (!finalScore || finalScore === '1-0' || finalScore === '0-1') {
-         const input = window.prompt(`Enter Final Score for this ${status} tip (e.g. 2-1):`, "");
-         if (input === null) return; 
-         finalScore = input || (status === TipStatus.WON ? "Win" : "Loss");
-      }
-      
-      await dbService.settleTip(id, status, finalScore);
-  };
-
-  const handleVerifyResult = async (tip: Tip) => {
-      alert(`Verifying result for ${tip.teams}... Please wait.`);
+  const handleAIVerifyTip = async (tip: Tip) => {
+      setIsGeneratingAI(true);
       const result = await checkBetResult(tip);
-      if (result.status !== 'UNKNOWN' && result.status !== 'ERROR') {
-          const confirmMsg = `AI Verification Result:\nStatus: ${result.status}\nScore: ${result.score}\nReason: ${result.reason}\n\nUpdate this tip?`;
-          if (window.confirm(confirmMsg)) {
-              await dbService.settleTip(tip.id, result.status as TipStatus, result.score);
-          }
+      if (result.status !== 'PENDING' && result.status !== 'ERROR') {
+          await dbService.settleTip(tip.id, result.status as TipStatus, result.score);
       } else {
-          alert(`Could not verify automatically.\nReason: ${result.reason}`);
+          alert(`Verification Result: ${result.reason}`);
       }
+      setIsGeneratingAI(false);
   };
 
-  const handleEditTip = (tip: Tip) => {
-      setNewTip(tip);
-      setEditingTipId(tip.id);
-      setAdminTab('tips');
-      const adminPanel = document.getElementById('admin-panel');
-      if (adminPanel) adminPanel.scrollIntoView({ behavior: 'smooth' });
-  }
-
-  // --- Image Upload Helper & Cropper ---
-  
-  // This opens the cropper
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, callback: (base64: string) => void) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        // Set state to open modal
-        setCroppingImage(reader.result as string);
-        setCropCallback(() => callback); 
-        // We use a function callback updater to correctly store the function
+  const handleImageUpload = (callback: (base64: string) => void) => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.onchange = (e: any) => {
+          const file = e.target.files[0];
+          if (file) {
+              const reader = new FileReader();
+              reader.onload = (re) => {
+                  setCroppingImage(re.target?.result as string);
+                  setCropCallback(() => callback);
+              };
+              reader.readAsDataURL(file);
+          }
       };
-      reader.readAsDataURL(file);
-      // Reset input value to allow re-uploading same file
-      e.target.value = '';
-    }
-  };
-
-  // Called when user clicks "Crop & Save" in modal
-  const handleCropComplete = (croppedBase64: string) => {
-      if (cropCallback) {
-          cropCallback(croppedBase64);
-      }
-      setCroppingImage(null);
-      setCropCallback(null);
-  };
-
-  const handleSaveNews = async () => {
-      if (!newNews.title || !newNews.body) return;
-      setIsSaving(true);
-      try {
-        if (editingNewsId) {
-             const updatedNews = { ...newNews, id: editingNewsId } as NewsPost;
-             await dbService.updateNews(updatedNews);
-             setEditingNewsId(null);
-        } else {
-             await dbService.addNews(newNews as Omit<NewsPost, 'id' | 'createdAt'>);
-        }
-        setNewNews({ title: '', category: 'Football', source: '', body: '', imageUrl: '', videoUrl: '', matchDate: '' });
-      } catch (e: any) {
-          alert("Error: " + e.message);
-      } finally {
-          setIsSaving(false);
-      }
-  };
-
-  const handleEditNews = (post: NewsPost) => {
-      setNewNews(post);
-      setEditingNewsId(post.id);
-      const adminPanel = document.getElementById('admin-panel');
-      if (adminPanel) adminPanel.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  const handleDeleteNews = async (id: string) => {
-      if (window.confirm('Delete this news?')) {
-          await dbService.deleteNews(id);
-      }
-  };
-
-  // --- Slides Handlers ---
-  const handleSaveSlide = async () => {
-      if (!newSlide.image || !newSlide.title) {
-          alert("Image and Title are required.");
-          return;
-      }
-      setIsSaving(true);
-      try {
-        if (editingSlideId) {
-             const updatedSlide = { ...newSlide, id: editingSlideId } as Slide;
-             await dbService.updateSlide(updatedSlide);
-             setEditingSlideId(null);
-        } else {
-             await dbService.addSlide(newSlide);
-        }
-        setNewSlide({ title: '', subtitle: '', image: '' });
-      } catch (e: any) {
-          alert("Error: " + e.message);
-      } finally {
-          setIsSaving(false);
-      }
-  };
-
-  const handleEditSlide = (slide: Slide) => {
-      setNewSlide(slide);
-      setEditingSlideId(slide.id);
-      const adminPanel = document.getElementById('admin-panel');
-      if (adminPanel) adminPanel.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  const handleDeleteSlide = async (id: string) => {
-      if (window.confirm("Delete this slide?")) {
-          await dbService.deleteSlide(id);
-      }
-  };
-
-  const handleUserAction = async (uid: string, action: 'make_admin' | 'delete') => {
-      if (action === 'make_admin') {
-          if (window.confirm("Promote this user to Admin?")) {
-             await dbService.updateUserRole(uid, UserRole.ADMIN);
-          }
-      } else {
-          if (window.confirm("Permanently delete this user?")) {
-              await dbService.deleteUser(uid);
-          }
-      }
+      input.click();
   };
 
   const handleSendMessage = async () => {
-      if (!contactMessage.trim() || !user) return;
-      
-      const msgContent = contactMessage;
-      setContactMessage(''); 
-      
-      // No Optimistic update needed - Firestore is fast enough and will push back immediately
-      try {
-        await dbService.sendMessage(user.uid, user.displayName || 'User', msgContent);
-      } catch (e: any) {
-          console.error(e);
-          alert("Message failed to send");
-      }
+    if (!contactMessage.trim() || !user) return;
+    const content = contactMessage.trim();
+    setContactMessage('');
+    try {
+      await dbService.sendMessage(user.uid, user.displayName || 'User', content);
+    } catch (err) { console.error("Failed to send message:", err); }
   };
 
-  const handleReplyMessage = async (msgId: string) => {
-      const text = replyText[msgId];
-      if (!text) return;
-      
+  const handleAdminReply = async (msgId: string) => {
+      const reply = replyText[msgId];
+      if (!reply?.trim()) return;
+      await dbService.replyToMessage(msgId, reply);
       setReplyText(prev => ({ ...prev, [msgId]: '' }));
-
-      try {
-          await dbService.replyToMessage(msgId, text);
-      } catch (e: any) {
-          console.error("Reply failed", e);
-          setReplyText(prev => ({ ...prev, [msgId]: text }));
-      }
   };
-  
-  const handleDeleteMessage = async (msgId: string) => {
-      if (window.confirm("Delete this message?")) {
-          try {
-              await dbService.deleteMessage(msgId);
-          } catch(e) {
-              console.error("Failed to delete", e);
-              alert("Failed to delete message.");
-          }
-      }
-  };
-
-  // --- RENDER HELPERS ---
 
   if (isInitializing) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center relative overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-green-900/30 via-slate-950 to-slate-950"></div>
-        <Trophy size={80} className="text-brazil-yellow animate-bounce mb-8 relative z-10 drop-shadow-[0_0_15px_rgba(255,223,0,0.5)]" />
-        <h1 className="text-4xl font-black italic text-white tracking-tighter relative z-10 animate-pulse">JIRVINHO</h1>
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center">
+        <div className="relative">
+            <div className="absolute inset-0 bg-brazil-green/30 blur-[60px] animate-pulse rounded-full"></div>
+            <Trophy size={80} className="text-brazil-yellow animate-bounce relative z-10" />
+        </div>
+        <h1 className="text-4xl font-black italic text-white tracking-tighter mt-8">JIRVINHO</h1>
       </div>
     );
   }
 
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4 relative">
-        <div className="absolute inset-0 overflow-hidden">
-            <div className="absolute -top-[20%] -right-[10%] w-[600px] h-[600px] bg-brazil-green/20 rounded-full blur-[100px] animate-pulse"></div>
-            <div className="absolute -bottom-[10%] -left-[10%] w-[500px] h-[500px] bg-blue-900/20 rounded-full blur-[100px]"></div>
-        </div>
-        
-        <div className="w-full max-w-md bg-slate-900/60 backdrop-blur-2xl p-8 rounded-[2.5rem] border border-white/10 shadow-2xl relative z-10">
+      <div className="min-h-screen flex items-center justify-center p-6">
+        <div className="w-full max-w-md bg-slate-900/50 backdrop-blur-3xl p-10 rounded-[3rem] border border-white/10 shadow-3xl relative overflow-hidden stagger-in">
+          <div className="absolute -top-20 -right-20 w-40 h-40 bg-brazil-green/10 rounded-full blur-[50px]"></div>
           <div className="text-center mb-10">
-             <div className="w-20 h-20 bg-gradient-to-br from-brazil-green to-blue-900 rounded-3xl mx-auto flex items-center justify-center shadow-lg shadow-green-500/20 mb-6 transform -rotate-6 hover:rotate-0 transition-transform duration-500">
+             <div className="w-20 h-20 bg-gradient-to-br from-brazil-green to-brazil-blue rounded-[2rem] mx-auto flex items-center justify-center shadow-2xl mb-6">
                  <Trophy size={40} className="text-brazil-yellow" />
              </div>
              <h2 className="text-4xl font-black text-white italic tracking-tighter mb-2">JIRVINHO</h2>
-             <p className="text-slate-400 font-medium tracking-wide">Elite Sports Analysis</p>
+             <p className="text-slate-500 font-black uppercase tracking-[0.2em] text-[10px]">Elite Sports Maestro</p>
           </div>
-
-          {authError && (
-            <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-sm p-4 rounded-2xl mb-6 flex items-center justify-center font-bold">
-              <ShieldAlert size={18} className="mr-2"/> {authError}
-            </div>
-          )}
-
-          <form onSubmit={handleAuth} className="space-y-5">
-             <div className="space-y-5">
-                {authMode === 'signup' && (
-                    <div className="relative group">
-                        <Smartphone className="absolute left-4 top-3.5 text-slate-500 group-focus-within:text-brazil-green transition-colors" size={20} />
-                        <input
-                            type="text"
-                            name="displayName"
-                            autoComplete="name"
-                            placeholder="Display Name"
-                            className="w-full bg-slate-950/50 border border-white/10 rounded-2xl py-3.5 pl-12 pr-4 text-white placeholder-slate-500 focus:outline-none focus:border-brazil-green focus:ring-1 focus:ring-brazil-green transition-all"
-                            value={displayName}
-                            onChange={(e) => setDisplayName(e.target.value)}
-                            required
-                        />
-                    </div>
-                )}
-                
-                <div className="relative group">
-                    <Mail className="absolute left-4 top-3.5 text-slate-500 group-focus-within:text-brazil-green transition-colors" size={20} />
-                    <input
-                        type="email"
-                        name="email"
-                        autoComplete="email"
-                        placeholder="Email Address"
-                        className="w-full bg-slate-950/50 border border-white/10 rounded-2xl py-3.5 pl-12 pr-4 text-white placeholder-slate-500 focus:outline-none focus:border-brazil-green focus:ring-1 focus:ring-brazil-green transition-all"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        required
-                    />
-                </div>
-
-                <div className="relative group">
-                    <Lock className="absolute left-4 top-3.5 text-slate-500 group-focus-within:text-brazil-green transition-colors" size={20} />
-                    <input
-                        type={showPassword ? "text" : "password"}
-                        name="password"
-                        autoComplete={authMode === 'signup' ? 'new-password' : 'current-password'}
-                        placeholder="Password"
-                        className="w-full bg-slate-950/50 border border-white/10 rounded-2xl py-3.5 pl-12 pr-12 text-white placeholder-slate-500 focus:outline-none focus:border-brazil-green focus:ring-1 focus:ring-brazil-green transition-all"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        required
-                    />
-                    <button 
-                        type="button" 
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-4 top-3.5 text-slate-500 hover:text-white transition-colors"
-                    >
-                        {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                    </button>
-                </div>
-             </div>
-
-             <div className="flex justify-between items-center text-xs text-slate-400 pt-2 px-1">
-                 <button type="button" onClick={() => setAuthMode(authMode === 'login' ? 'signup' : 'login')} className="hover:text-brazil-green transition-colors font-bold uppercase tracking-wider">
-                     {authMode === 'login' ? 'Create Account' : 'Back to Login'}
-                 </button>
-                 {authMode === 'login' && (
-                     <button type="button" onClick={() => setAuthMode('forgot')} className="hover:text-white transition-colors">
-                         Forgot password?
-                     </button>
-                 )}
-             </div>
-
-             <button 
-                type="submit" 
-                className="w-full bg-gradient-to-r from-brazil-green to-green-600 hover:from-green-500 hover:to-green-400 text-white font-black uppercase tracking-widest py-4 rounded-2xl shadow-xl shadow-green-900/30 active:scale-[0.98] transition-all duration-300 mt-4"
-             >
-                {authMode === 'login' ? 'Enter Arena' : authMode === 'signup' ? 'Join Now' : 'Send Reset Link'}
-             </button>
+          {authError && <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-xs p-4 rounded-2xl mb-6 font-bold">{authError}</div>}
+          <form onSubmit={handleAuth} className="space-y-4">
+             {authMode === 'signup' && (
+                <div className="relative"><Smartphone className="absolute left-4 top-4 text-slate-500" size={18}/><input type="text" placeholder="Your Full Name" className="w-full bg-black/40 border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-white focus:border-brazil-green outline-none" value={displayName} onChange={(e) => setDisplayName(e.target.value)} required/></div>
+             )}
+             <div className="relative"><Mail className="absolute left-4 top-4 text-slate-500" size={18}/><input type="email" placeholder="Email Address" className="w-full bg-black/40 border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-white focus:border-brazil-green outline-none" value={email} onChange={(e) => setEmail(e.target.value)} required/></div>
+             <div className="relative"><Lock className="absolute left-4 top-4 text-slate-500" size={18}/><input type={showPassword ? "text" : "password"} placeholder="Password" className="w-full bg-black/40 border border-white/5 rounded-2xl py-4 pl-12 pr-12 text-white focus:border-brazil-green outline-none" value={password} onChange={(e) => setPassword(e.target.value)} required/><button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-4 text-slate-500">{showPassword ? <EyeOff size={18}/> : <Eye size={18}/>}</button></div>
+             <button type="submit" className="w-full bg-brazil-green text-white font-black uppercase tracking-widest py-4 rounded-2xl shadow-xl shadow-green-900/30 active:scale-95 transition-all mt-4">{authMode === 'login' ? 'Enter Arena' : 'Join the Club'}</button>
+             <div className="text-center pt-4"><button type="button" onClick={() => setAuthMode(authMode === 'login' ? 'signup' : 'login')} className="text-slate-500 hover:text-brazil-green text-[10px] font-black uppercase tracking-widest">{authMode === 'login' ? 'Request Access' : 'Existing Member?'}</button></div>
           </form>
         </div>
       </div>
     );
   }
 
-  // --- MAIN APP UI ---
-
   return (
     <Layout user={user} onLogout={handleLogout} activeTab={activeTab} setActiveTab={setActiveTab}>
+        {croppingImage && <ImageCropper imageSrc={croppingImage} aspect={16 / 9} onCancel={() => setCroppingImage(null)} onCropComplete={(val) => { cropCallback?.(val); setCroppingImage(null); }}/>}
         
-        {/* Render Cropper Modal if active */}
-        {croppingImage && (
-            <ImageCropper 
-                imageSrc={croppingImage} 
-                aspect={16 / 9} 
-                onCancel={() => { setCroppingImage(null); setCropCallback(null); }}
-                onCropComplete={handleCropComplete}
-            />
-        )}
-        
-        {/* --- DASHBOARD TAB --- */}
+        {/* --- DASHBOARD VIEW --- */}
         {activeTab === 'dashboard' && (
-            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-700">
-                
-                {/* WELCOME BANNER */}
-                <div className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-r from-green-900/60 via-slate-900/80 to-slate-900/80 border border-white/10 p-8 shadow-2xl relative group">
-                   <div className="absolute top-0 right-0 p-10 opacity-10 group-hover:opacity-20 transition-opacity duration-1000">
-                      <Trophy size={200} className="transform rotate-12 text-white" />
-                   </div>
-                   <div className="absolute bottom-0 left-0 w-full h-1/2 bg-gradient-to-t from-brazil-green/10 to-transparent"></div>
-                   
+            <div className="space-y-10 pb-20 stagger-in">
+                <div className="relative overflow-hidden rounded-[3rem] bg-gradient-to-br from-slate-900 to-slate-950 border border-white/10 p-10 md:p-14 shadow-3xl">
+                   <div className="absolute top-0 right-0 p-12 opacity-[0.03]"><Trophy size={280} className="text-white"/></div>
                    <div className="relative z-10 max-w-2xl">
-                      <div className="flex items-center gap-2 mb-2">
-                          <Sparkles size={16} className="text-brazil-yellow animate-pulse" />
-                          <span className="text-brazil-yellow text-xs font-bold uppercase tracking-widest">Premium Member</span>
+                      <div className="flex items-center gap-2 mb-4">
+                          <div className="px-3 py-1 bg-brazil-yellow/10 border border-brazil-yellow/20 rounded-full flex items-center gap-1.5">
+                             <Sparkles size={12} className="text-brazil-yellow"/>
+                             <span className="text-brazil-yellow text-[9px] font-black uppercase tracking-widest">Maestro Certified</span>
+                          </div>
                       </div>
-                      <h1 className="text-3xl md:text-5xl font-black italic text-white mb-3 leading-tight">
-                         Welcome back, <br/>
-                         <span className="text-transparent bg-clip-text bg-gradient-to-r from-white to-slate-400">{user.displayName}!</span>
+                      <h1 className="text-5xl md:text-7xl font-black italic text-white mb-6 leading-[0.9] tracking-tighter uppercase">
+                         BOM DIA, <br/>
+                         <span className="text-transparent bg-clip-text bg-gradient-to-r from-brazil-green to-emerald-400">
+                             {user.displayName || 'MAESTRO'}!
+                         </span>
                       </h1>
-                      <p className="text-slate-300 font-medium text-sm md:text-base max-w-md leading-relaxed">
-                         The arena is set for victory. Analyze the stats, check the latest insights, and make your move.
-                      </p>
+                      <p className="text-slate-400 font-medium text-base md:text-lg max-w-lg leading-relaxed">The arena is live. Every prediction is backed by Maestro's elite data algorithms. Choose your play wisely.</p>
                    </div>
                 </div>
 
-                {/* Stats & Banner Section */}
-                <div className="space-y-8">
-                   <ImageSlider slides={slides} />
-                   <StatsWidget stats={stats} />
+                <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+                   <div className="xl:col-span-2"><ImageSlider slides={slides} /></div>
+                   <div className="xl:col-span-1"><StatsWidget stats={stats} /></div>
                 </div>
 
-                {/* Categories Tabs (Mobile Optimized) */}
-                <div className="sticky top-20 z-30 bg-slate-950/80 backdrop-blur-xl py-4 -mx-4 px-4 md:mx-0 md:px-0 md:bg-transparent md:backdrop-blur-none border-b border-white/5 md:border-0">
-                    <div className="flex space-x-3 overflow-x-auto pb-1 scrollbar-hide md:justify-center">
-                        {[TipCategory.SINGLE, TipCategory.ODD_2_PLUS, TipCategory.ODD_4_PLUS].map(cat => (
-                            <button
-                                key={cat}
-                                onClick={() => setMobileTab(cat)}
-                                className={`whitespace-nowrap px-6 py-2.5 rounded-full text-xs font-bold transition-all shadow-lg border ${
-                                    mobileTab === cat 
-                                    ? 'bg-white text-slate-900 border-white scale-105' 
-                                    : 'bg-slate-800/50 text-slate-400 border-white/5 hover:bg-slate-800 hover:text-white'
+                <div className="flex flex-wrap gap-4 items-center justify-center md:justify-start">
+                    {[TipCategory.SINGLE, TipCategory.ODD_2_PLUS, TipCategory.ODD_4_PLUS].map(cat => (
+                        <button 
+                          key={cat} 
+                          onClick={() => setMobileTab(cat)} 
+                          className={`px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all border ${
+                            mobileTab === cat 
+                              ? 'bg-white text-slate-950 border-white shadow-2xl scale-105' 
+                              : 'bg-white/5 text-slate-500 border-white/5 hover:bg-white/10 hover:text-white'
+                          }`}
+                        >
+                          {cat}
+                        </button>
+                    ))}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    {tips.filter(t => t.category === mobileTab).map(tip => (
+                        <TipCard key={tip.id} tip={tip} isAdmin={user.role === UserRole.ADMIN} onVote={handleVote} onVerify={handleAIVerifyTip} />
+                    ))}
+                    {tips.filter(t => t.category === mobileTab).length === 0 && (
+                        <div className="col-span-full text-center py-20 bg-white/[0.02] rounded-[3rem] border border-dashed border-white/10">
+                            <Target size={48} className="mx-auto text-slate-800 mb-4"/>
+                            <p className="text-slate-500 font-black uppercase tracking-widest text-xs">No active predictions available</p>
+                        </div>
+                    )}
+                </div>
+            </div>
+        )}
+
+        {/* --- INSIGHTS VIEW --- */}
+        {activeTab === 'stats' && (
+            <div className="stagger-in pb-20">
+                <div className="flex items-center gap-4 mb-10">
+                    <div className="p-3 bg-brazil-green/10 rounded-2xl"><BarChart3 className="text-brazil-green" size={32}/></div>
+                    <h2 className="text-4xl font-black italic text-white tracking-tighter uppercase">Maestro Insights</h2>
+                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
+                     <div className="glass-panel p-10 rounded-[3rem] shadow-2xl">
+                        <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-8">Performance Distribution</h3>
+                        <div className="h-72 w-full">
+                           <ResponsiveContainer width="100%" height="100%">
+                              <BarChart data={[
+                                { name: 'WON', value: stats.wonTips }, 
+                                { name: 'LOSS', value: stats.totalTips - stats.wonTips }, 
+                                { name: 'VOID', value: 0 }
+                              ]}>
+                                 <CartesianGrid strokeDasharray="3 3" stroke="#ffffff05" vertical={false}/>
+                                 <XAxis dataKey="name" stroke="#64748b" tick={{fontSize: 10, fontWeight: 900}} axisLine={false} tickLine={false}/>
+                                 <YAxis hide/>
+                                 <Tooltip contentStyle={{backgroundColor: '#020617', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.1)'}} cursor={{fill: 'rgba(255,255,255,0.05)'}}/>
+                                 <Bar dataKey="value" fill="#009c3b" radius={[8, 8, 0, 0]} barSize={50}/>
+                              </BarChart>
+                           </ResponsiveContainer>
+                        </div>
+                     </div>
+                     <div className="bg-gradient-to-br from-brazil-green/20 to-brazil-blue/20 p-10 rounded-[3rem] border border-white/10 flex flex-col justify-center items-center text-center">
+                        <Trophy size={64} className="text-brazil-yellow mb-6 shadow-2xl"/>
+                        <h4 className="text-3xl font-black text-white italic mb-4">ELITE VERIFIED</h4>
+                        <p className="text-slate-400 text-sm leading-relaxed max-sm">Every tip is verified by the Arena Master. We maintain a strict win rate tracking for full transparency.</p>
+                     </div>
+                </div>
+            </div>
+        )}
+
+        {/* --- LIVE SCORES VIEW --- */}
+        {activeTab === 'scores' && <LiveScoreBoard />}
+
+        {/* --- NEWS VIEW --- */}
+        {activeTab === 'news' && (
+            <div className="stagger-in pb-20">
+                <div className="flex items-center gap-4 mb-10">
+                    <div className="p-3 bg-brazil-blue/10 rounded-2xl"><Newspaper className="text-brazil-blue" size={32}/></div>
+                    <h2 className="text-4xl font-black italic text-white tracking-tighter uppercase">News</h2>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    {news.map(post => (
+                        <div key={post.id} className="glass-panel rounded-[2.5rem] overflow-hidden hover:border-white/20 transition-all duration-500 group">
+                             <div className="h-56 bg-slate-800 relative overflow-hidden">
+                                {post.imageUrl && <img src={post.imageUrl} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000"/>}
+                                <div className="absolute top-4 left-4 bg-brazil-green text-white text-[9px] font-black px-2.5 py-1.5 rounded-lg uppercase tracking-widest">{post.category}</div>
+                             </div>
+                             <div className="p-8">
+                                <h3 className="text-xl font-bold text-white mb-4 leading-tight group-hover:text-brazil-yellow transition-colors">{post.title}</h3>
+                                <p className="text-slate-400 text-xs line-clamp-3 mb-6 leading-relaxed">{post.body}</p>
+                                <button className="text-brazil-green text-[10px] font-black uppercase tracking-widest flex items-center group/btn">
+                                    Full Dispatch <ChevronRight size={14} className="ml-2 group-hover/btn:translate-x-1 transition-transform"/>
+                                </button>
+                             </div>
+                        </div>
+                    ))}
+                    {news.length === 0 && (
+                        <div className="col-span-full text-center py-20 bg-white/[0.02] rounded-[3rem] border border-dashed border-white/10">
+                            <Newspaper size={48} className="mx-auto text-slate-800 mb-4"/>
+                            <p className="text-slate-500 font-black uppercase tracking-widest text-xs">No dispatches currently available</p>
+                        </div>
+                    )}
+                </div>
+            </div>
+        )}
+
+        {/* --- CHAT VIEW (User) --- */}
+        {activeTab === 'contact' && user.role !== UserRole.ADMIN && (
+            <div className="fixed inset-x-0 top-20 bottom-24 md:static md:h-[calc(100vh-140px)] flex flex-col stagger-in z-30 px-4 md:px-0 pb-6">
+                 <div className="flex-1 glass-panel rounded-[2.5rem] overflow-hidden flex flex-col relative shadow-3xl">
+                     <div className="p-6 bg-white/[0.02] border-b border-white/5 flex items-center justify-between">
+                        <h2 className="text-xl font-black italic text-white flex items-center gap-3">
+                            <MessageSquare className="text-brazil-green" size={24}/> CHAT
+                        </h2>
+                     </div>
+                     <div className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-hide">
+                         {messages.map(msg => (
+                             <div key={msg.id} className={`flex flex-col ${msg.userId === user.uid ? 'items-end' : 'items-start'}`}>
+                                 <div className={`max-w-[85%] rounded-[1.5rem] p-4 shadow-xl ${msg.userId === user.uid ? 'bg-brazil-green text-white rounded-tr-none' : 'bg-slate-800 text-slate-200 rounded-tl-none'}`}>
+                                    <p className="text-sm">{msg.content}</p>
+                                    <span className="text-[8px] opacity-40 mt-2 block text-right font-black uppercase">{new Date(msg.createdAt).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
+                                 </div>
+                                 {msg.reply && <div className="mt-2 ml-4 max-w-[85%] bg-brazil-blue/10 border border-brazil-blue/20 p-3 rounded-2xl text-blue-100 text-xs italic">Maestro: {msg.reply}</div>}
+                             </div>
+                         ))}
+                         <div ref={messagesEndRef} />
+                     </div>
+                     <div className="p-6 bg-white/[0.02] border-t border-white/5">
+                        <div className="flex gap-3">
+                            <input 
+                                type="text" 
+                                value={contactMessage} 
+                                onChange={(e) => setContactMessage(e.target.value)} 
+                                placeholder="Chat with the Maestro..." 
+                                className="flex-1 bg-black/40 border border-white/5 rounded-2xl px-6 py-4 text-white focus:ring-2 focus:ring-brazil-green outline-none transition-all"
+                                onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                            />
+                            <button onClick={handleSendMessage} className="bg-brazil-green text-white p-4 rounded-2xl shadow-lg active:scale-95 transition-all"><Send size={24}/></button>
+                        </div>
+                     </div>
+                 </div>
+            </div>
+        )}
+
+        {/* --- ADMIN DASHBOARD --- */}
+        {activeTab === 'admin' && user.role === UserRole.ADMIN && (
+            <div className="stagger-in pb-20">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
+                    <div className="flex items-center gap-4">
+                        <div className="p-3 bg-brazil-yellow/10 rounded-2xl"><Settings className="text-brazil-yellow" size={32}/></div>
+                        <h2 className="text-4xl font-black italic text-white tracking-tighter uppercase">Maestro Control</h2>
+                    </div>
+                    
+                    <div className="flex overflow-x-auto bg-slate-900/50 p-1.5 rounded-2xl border border-white/5 scrollbar-hide">
+                        {[
+                            { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+                            { id: 'tips', label: 'Tips', icon: Target },
+                            { id: 'news', label: 'News', icon: Newspaper },
+                            { id: 'slides', icon: Globe, label: 'Banners' },
+                            { id: 'users', label: 'Users', icon: UserCog },
+                            { id: 'messages', label: 'Inbox', icon: MessageSquare }
+                        ].map(sub => (
+                            <button 
+                                key={sub.id} 
+                                onClick={() => setAdminTab(sub.id as any)}
+                                className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${
+                                    adminTab === sub.id ? 'bg-brazil-green text-white shadow-lg' : 'text-slate-500 hover:text-white'
                                 }`}
                             >
-                                {cat}
+                                <sub.icon size={14}/> {sub.label}
                             </button>
                         ))}
                     </div>
                 </div>
 
-                {/* Tips Grid */}
-                <div>
-                    <div className="flex items-center gap-3 mb-6 px-2">
-                        <div className="p-2 bg-brazil-yellow/10 rounded-lg">
-                            <Target className="text-brazil-yellow" size={24} />
-                        </div>
-                        <h2 className="text-2xl font-black italic text-white tracking-tight">{mobileTab.toUpperCase()}</h2>
-                    </div>
-
-                    {tips.filter(t => t.category === mobileTab).length > 0 ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                            {tips.filter(t => t.category === mobileTab).map(tip => (
-                                <TipCard key={tip.id} tip={tip} isAdmin={user.role === UserRole.ADMIN} onVote={handleVote} />
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="text-center py-24 bg-slate-900/30 rounded-[2rem] border border-dashed border-slate-800 backdrop-blur-sm">
-                            <Target className="mx-auto h-16 w-16 text-slate-700 mb-4 opacity-50" />
-                            <h3 className="text-slate-400 font-bold text-lg">No tips available yet</h3>
-                            <p className="text-slate-600 text-sm mt-1">Check back later for new predictions.</p>
-                        </div>
-                    )}
-                </div>
-            </div>
-        )}
-
-        {/* --- STATS TAB --- */}
-        {activeTab === 'stats' && (
-            <div className="animate-in fade-in slide-in-from-bottom-8 duration-700">
-                <div className="flex items-center gap-3 mb-8">
-                    <div className="p-2 bg-brazil-green/10 rounded-xl">
-                        <Award className="text-brazil-green" size={28}/> 
-                    </div>
-                    <h2 className="text-3xl font-black italic text-white tracking-tight">PERFORMANCE STATS</h2>
-                </div>
-                
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-                     <div className="glass-panel p-8 rounded-[2rem]">
-                        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-6">Win/Loss Distribution</h3>
-                        <div className="h-72 w-full">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={[
-                                    { name: 'Won', value: stats.wonTips },
-                                    { name: 'Total', value: stats.totalTips },
-                                    { name: 'Win %', value: stats.winRate }
-                                ]}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} opacity={0.3} />
-                                    <XAxis dataKey="name" stroke="#94a3b8" tick={{fontSize: 12, fontWeight: 700}} axisLine={false} tickLine={false} />
-                                    <YAxis stroke="#94a3b8" tick={{fontSize: 12}} axisLine={false} tickLine={false} />
-                                    <Tooltip 
-                                        contentStyle={{backgroundColor: '#0f172a', borderColor: 'rgba(255,255,255,0.1)', color: '#f8fafc', borderRadius: '16px', boxShadow: '0 10px 40px rgba(0,0,0,0.5)'}}
-                                        cursor={{fill: 'rgba(255,255,255,0.05)'}}
-                                    />
-                                    <Bar dataKey="value" fill="#009c3b" radius={[6, 6, 6, 6]} barSize={40} />
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </div>
-                     </div>
-                </div>
-                
-                <div className="bg-gradient-to-br from-slate-900 to-black p-10 rounded-[2.5rem] border border-white/5 text-center shadow-2xl relative overflow-hidden">
-                    <div className="absolute top-0 right-0 w-64 h-64 bg-brazil-yellow/5 rounded-full blur-[80px]"></div>
-                    <Trophy size={56} className="text-brazil-yellow mx-auto mb-6 relative z-10" />
-                    <h3 className="text-4xl font-black text-white mb-4 tracking-tight relative z-10">MAESTRO TRUST</h3>
-                    <p className="text-slate-400 max-w-lg mx-auto leading-relaxed relative z-10">
-                        Our AI-driven analysis coupled with expert human oversight delivers consistent results. 
-                        We maintain transparency with every tip settled.
-                    </p>
-                </div>
-            </div>
-        )}
-
-        {/* --- NEWS TAB --- */}
-        {activeTab === 'news' && (
-            <div className="animate-in fade-in slide-in-from-bottom-8 duration-700">
-                <div className="flex items-center gap-3 mb-8">
-                    <div className="p-2 bg-blue-500/10 rounded-xl">
-                        <Newspaper className="text-blue-400" size={28}/> 
-                    </div>
-                    <h2 className="text-3xl font-black italic text-white tracking-tight">LATEST NEWS</h2>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                    {news.map(post => (
-                        <div key={post.id} className="glass-panel rounded-[2rem] overflow-hidden hover:border-white/20 transition-all group duration-500 hover:-translate-y-1">
-                             <div className="h-56 bg-slate-800 relative overflow-hidden">
-                                {post.imageUrl ? (
-                                    <img src={post.imageUrl} alt={post.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"/>
-                                ) : (
-                                    <div className="w-full h-full flex items-center justify-center bg-slate-800">
-                                        <Newspaper size={48} className="text-slate-700"/>
-                                    </div>
-                                )}
-                                <div className="absolute top-4 left-4 bg-brazil-blue/90 backdrop-blur text-white text-[10px] font-black px-3 py-1.5 rounded-lg shadow-lg uppercase tracking-wider">
-                                    {post.category}
-                                </div>
-                             </div>
-                             <div className="p-8">
-                                 <div className="flex items-center text-[10px] text-slate-400 mb-4 font-bold uppercase tracking-wider space-x-2">
-                                     <span>{new Date(post.createdAt).toLocaleDateString()}</span>
-                                     {post.source && <span className="text-brazil-green">• {post.source}</span>}
-                                 </div>
-                                 <h3 className="text-xl font-bold text-white mb-4 leading-tight group-hover:text-brazil-yellow transition-colors">{post.title}</h3>
-                                 <p className="text-slate-400 text-sm line-clamp-3 mb-6 leading-relaxed">{post.body}</p>
-                                 <button className="text-brazil-green text-xs font-black flex items-center hover:text-white transition-colors uppercase tracking-widest">
-                                     READ FULL STORY <ChevronRight size={14} className="ml-1"/>
-                                 </button>
-                             </div>
-                        </div>
-                    ))}
-                    {news.length === 0 && (
-                        <div className="col-span-full text-center py-24 text-slate-500 font-medium">No news articles yet.</div>
-                    )}
-                </div>
-            </div>
-        )}
-
-        {/* --- SCORES TAB --- */}
-        {activeTab === 'scores' && (
-             <LiveScoreBoard />
-        )}
-
-        {/* --- CONTACT / CHAT TAB --- */}
-        {(activeTab === 'contact' || (activeTab === 'admin' && adminTab === 'messages')) && (
-            // FIX: Using fixed positioning on mobile to ensure full viewport height usage without getting hidden by nav
-            <div className={`fixed inset-x-0 ${activeTab === 'admin' ? 'static h-auto min-h-[600px]' : 'top-20 bottom-24 md:static md:h-[calc(100vh-140px)]'} flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500 z-30`}>
-                 <div className={`flex-1 glass-panel ${activeTab === 'admin' ? 'rounded-[2.5rem]' : 'md:rounded-[2.5rem]'} overflow-hidden flex flex-col relative shadow-2xl h-full border-x-0 md:border-x border-y-0 md:border-y border-white/10`}>
-                     {/* Chat Header */}
-                     <div className="p-4 md:p-6 bg-slate-900/50 border-b border-white/5 flex items-center justify-between backdrop-blur-md shrink-0">
-                         <h2 className="text-lg md:text-xl font-black italic text-white flex items-center gap-3">
-                            <MessageSquare className="text-brazil-green" size={24}/> 
-                            {user.role === UserRole.ADMIN ? 'USER MESSAGES' : 'ASK THE MAESTRO'}
-                         </h2>
-                     </div>
-                     
-                     {/* Chat Messages Area */}
-                     <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 bg-slate-950/30">
-                         {messages.length === 0 ? (
-                             <div className="h-full flex flex-col items-center justify-center text-slate-600 opacity-50">
-                                 <MessageSquare size={64} className="mb-4"/>
-                                 <p className="text-sm font-bold tracking-widest uppercase">Start the conversation...</p>
-                             </div>
-                         ) : (
-                             messages.map(msg => (
-                                 <div key={msg.id} className={`flex flex-col ${msg.userId === user.uid ? 'items-end' : 'items-start'}`}>
-                                     <div className={`max-w-[85%] rounded-3xl p-5 shadow-lg group relative ${msg.userId === user.uid ? 'bg-gradient-to-br from-brazil-green/80 to-green-800 text-white rounded-tr-none' : 'bg-slate-800 border border-white/5 text-slate-200 rounded-tl-none'}`}>
-                                         {user.role === UserRole.ADMIN && msg.userId !== user.uid && (
-                                             <div className="text-[10px] text-brazil-yellow font-bold mb-2 uppercase tracking-wider">{msg.userName}</div>
-                                         )}
-                                         <p className="text-sm leading-relaxed">{msg.content}</p>
-                                         <span className="text-[10px] opacity-50 mt-3 block text-right font-medium">{new Date(msg.createdAt).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
-                                         
-                                         {/* Delete Button for Owner */}
-                                         {msg.userId === user.uid && (
-                                             <button 
-                                                onClick={() => handleDeleteMessage(msg.id)}
-                                                className="absolute -left-10 top-1/2 -translate-y-1/2 p-2 text-slate-500 hover:text-red-500 bg-slate-900/50 rounded-full transition-all opacity-60 hover:opacity-100"
-                                                title="Delete Message"
-                                             >
-                                                 <Trash2 size={14}/>
-                                             </button>
-                                         )}
-                                     </div>
-                                     
-                                     {/* Admin Reply Display - IMPROVED VISIBILITY */}
-                                     {msg.reply && (
-                                         <div className="mt-2 ml-4 max-w-[85%] bg-gradient-to-r from-blue-900/40 to-slate-900/40 border border-blue-500/30 p-4 rounded-3xl rounded-tl-none text-slate-200 text-sm flex gap-3 shadow-lg">
-                                             <div className="w-1 bg-blue-500 rounded-full shrink-0 shadow-[0_0_10px_#3b82f6]"></div>
-                                             <div className="w-full">
-                                                 <span className="text-[10px] text-blue-400 font-bold uppercase block mb-1 tracking-wider flex items-center gap-1">
-                                                     <Sparkles size={10} /> Jirvinho Reply
-                                                 </span>
-                                                 <p className="leading-relaxed font-medium">{msg.reply}</p>
-                                             </div>
-                                         </div>
-                                     )}
-
-                                     {/* Admin Reply Input */}
-                                     {user.role === UserRole.ADMIN && !msg.reply && msg.userId !== user.uid && (
-                                         <div className="mt-3 flex w-full max-w-[85%] gap-2 animate-in fade-in slide-in-from-top-1">
-                                             <input 
-                                                type="text" 
-                                                placeholder="Write a reply..."
-                                                className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-xs text-white focus:border-brazil-green focus:outline-none focus:ring-1 focus:ring-brazil-green/50 transition-all"
-                                                value={replyText[msg.id] || ''}
-                                                onChange={(e) => setReplyText({...replyText, [msg.id]: e.target.value})}
-                                             />
-                                             <button 
-                                                onClick={() => handleReplyMessage(msg.id)}
-                                                disabled={!replyText[msg.id]}
-                                                className="bg-slate-800 hover:bg-brazil-green disabled:opacity-50 disabled:hover:bg-slate-800 text-white p-3 rounded-xl transition-all shadow-lg active:scale-95"
-                                             >
-                                                 <Send size={16}/>
-                                             </button>
-                                         </div>
-                                     )}
-                                 </div>
-                             ))
-                         )}
-                         <div ref={messagesEndRef} className="h-4" />
-                     </div>
-
-                     {/* Chat Input (User Only) */}
-                     {user.role !== UserRole.ADMIN && (
-                         <div className="p-4 md:p-6 bg-slate-900/80 border-t border-white/5 backdrop-blur-md shrink-0">
-                             <div className="flex gap-3">
-                                 <input 
-                                    type="text"
-                                    value={contactMessage}
-                                    onChange={(e) => setContactMessage(e.target.value)}
-                                    placeholder="Type your message..."
-                                    className="flex-1 bg-slate-800 border-none rounded-2xl px-6 py-4 text-white placeholder-slate-500 focus:ring-2 focus:ring-brazil-green/50 focus:outline-none shadow-inner"
-                                    onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                                 />
-                                 <button 
-                                    onClick={handleSendMessage}
-                                    disabled={!contactMessage.trim()}
-                                    className="bg-brazil-green hover:bg-green-600 disabled:opacity-50 disabled:hover:bg-brazil-green text-white p-4 rounded-2xl transition-all active:scale-95 shadow-lg shadow-green-900/30"
-                                 >
-                                     <Send size={24}/>
-                                 </button>
-                             </div>
-                         </div>
-                     )}
-                 </div>
-            </div>
-        )}
-
-        {/* --- ADMIN TAB --- */}
-        {activeTab === 'admin' && user.role === UserRole.ADMIN && (
-            <div id="admin-panel" className="animate-in fade-in slide-in-from-bottom-8 duration-700 pb-20">
-                <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 gap-6 md:gap-4">
-                     <h2 className="text-3xl font-black italic text-white flex items-center gap-3 pl-1 md:pl-0">
-                        <Shield className="text-brazil-green" size={32}/> ADMIN PANEL
-                     </h2>
-                     {/* Sub-nav for Admin */}
-                     <div className="w-full md:w-auto overflow-x-auto scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
-                         <div className="flex md:inline-flex gap-3 md:gap-0 bg-transparent md:bg-slate-900/80 md:rounded-xl md:p-1.5 md:border md:border-white/5 md:backdrop-blur-md md:shadow-lg min-w-max pb-1 md:pb-0">
-                            {['overview', 'tips', 'news', 'slides', 'users', 'messages'].map((t) => (
-                                <button
-                                    key={t}
-                                    onClick={() => setAdminTab(t as any)}
-                                    className={`whitespace-nowrap px-6 md:px-5 py-2.5 rounded-full md:rounded-lg text-xs font-bold uppercase tracking-wider transition-all border md:border-0 ${
-                                        adminTab === t 
-                                        ? 'bg-white md:bg-slate-700 text-slate-900 md:text-white border-white shadow-lg transform scale-105' 
-                                        : 'bg-slate-800/50 md:bg-transparent text-slate-400 md:text-slate-500 border-white/5 hover:text-white'
-                                    }`}
-                                >
-                                    {t}
-                                </button>
-                            ))}
-                         </div>
-                     </div>
-                </div>
-
-                {/* OVERVIEW SUB-TAB */}
+                {/* ADMIN OVERVIEW */}
                 {adminTab === 'overview' && (
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                        <div className="glass-panel p-6 rounded-[2rem] text-center">
-                            <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-2">Total Users</p>
-                            <p className="text-4xl font-black text-white">{allUsers.length}</p>
-                        </div>
-                        <div className="glass-panel p-6 rounded-[2rem] text-center">
-                            <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-2">Active Tips</p>
-                            <p className="text-4xl font-black text-white">{tips.filter(t => t.status === TipStatus.PENDING).length}</p>
-                        </div>
-                        <div onClick={() => setAdminTab('messages')} className="glass-panel p-6 rounded-[2rem] text-center cursor-pointer hover:bg-slate-800 transition-colors group">
-                            <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-2 group-hover:text-white transition-colors">Messages</p>
-                            <p className="text-4xl font-black text-white group-hover:text-brazil-yellow transition-colors">{messages.length}</p>
-                        </div>
-                        <div className="glass-panel p-6 rounded-[2rem] text-center border-brazil-green/30 relative overflow-hidden">
-                             <div className="absolute inset-0 bg-brazil-green/5"></div>
-                            <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-2">Win Rate</p>
-                            <p className="text-4xl font-black text-brazil-green">{stats.winRate}%</p>
-                        </div>
-                    </div>
-                )}
-
-                {/* SLIDES MANAGEMENT */}
-                {adminTab === 'slides' && (
-                    <div className="space-y-8">
-                        {/* Slide Form */}
-                        <div className="bg-slate-900 p-8 rounded-[2rem] border border-slate-800">
-                            <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
-                                {editingSlideId ? <Edit3 size={18}/> : <Plus size={18}/>}
-                                {editingSlideId ? 'Edit Slide' : 'Add New Slide'}
-                            </h3>
-                            <div className="space-y-6">
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">Image URL (or Upload & Crop)</label>
-                                    <div className="flex gap-3">
-                                        <input 
-                                            type="text" 
-                                            className="flex-1 bg-slate-950 border border-slate-800 rounded-xl p-4 text-white text-sm focus:border-brazil-green focus:outline-none transition-colors"
-                                            value={newSlide.image || ''}
-                                            onChange={(e) => setNewSlide({...newSlide, image: e.target.value})}
-                                            placeholder="https://... or upload"
-                                        />
-                                        <label className="bg-slate-800 hover:bg-slate-700 text-white px-6 rounded-xl flex items-center cursor-pointer transition-colors border border-white/5">
-                                            <UploadCloud size={20} />
-                                            {/* Update: Handle upload via cropping flow */}
-                                            <input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, (val) => setNewSlide({...newSlide, image: val}))} />
-                                        </label>
-                                    </div>
-                                    {newSlide.image && (
-                                        <div className="mt-4 h-40 w-full rounded-2xl bg-cover bg-center border border-slate-700 shadow-lg" style={{backgroundImage: `url(${newSlide.image})`}}></div>
-                                    )}
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">Title</label>
-                                    <input 
-                                        type="text" 
-                                        className="w-full bg-slate-950 border border-slate-800 rounded-xl p-4 text-white text-sm font-bold focus:border-brazil-green focus:outline-none transition-colors"
-                                        value={newSlide.title || ''}
-                                        onChange={(e) => setNewSlide({...newSlide, title: e.target.value})}
-                                        placeholder="e.g. WEEKEND MEGA JACKPOT"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">Subtitle</label>
-                                    <input 
-                                        type="text" 
-                                        className="w-full bg-slate-950 border border-slate-800 rounded-xl p-4 text-white text-sm focus:border-brazil-green focus:outline-none transition-colors"
-                                        value={newSlide.subtitle || ''}
-                                        onChange={(e) => setNewSlide({...newSlide, subtitle: e.target.value})}
-                                        placeholder="e.g. Win Big with 50+ Odds"
-                                    />
-                                </div>
-                                <div className="flex gap-4 pt-4">
-                                    {editingSlideId && (
-                                        <button 
-                                            onClick={() => { setEditingSlideId(null); setNewSlide({title:'', subtitle:'', image:''}); }}
-                                            className="px-6 py-3 bg-slate-800 text-slate-300 rounded-xl text-sm font-bold hover:bg-slate-700 transition-colors"
-                                        >
-                                            Cancel
-                                        </button>
-                                    )}
-                                    <button 
-                                        onClick={handleSaveSlide} 
-                                        disabled={isSaving}
-                                        className="flex-1 bg-brazil-green hover:bg-green-600 text-white py-3 rounded-xl font-bold shadow-lg shadow-green-900/20 disabled:opacity-50 uppercase tracking-widest transition-all"
-                                    >
-                                        {isSaving ? 'Saving...' : (editingSlideId ? 'Update Slide' : 'Publish Slide')}
-                                    </button>
-                                </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        {[
+                            { label: 'Win Rate', val: `${stats.winRate}%`, icon: Trophy, color: 'text-brazil-yellow' },
+                            { label: 'Total Tips', val: stats.totalTips, icon: Target, color: 'text-blue-500' },
+                            { label: 'Total Users', val: allUsers.length, icon: UserCog, color: 'text-purple-500' },
+                            { label: 'Unread Msgs', val: messages.filter(m => !m.isRead).length, icon: MessageSquare, color: 'text-red-500' }
+                        ].map((stat, i) => (
+                            <div key={i} className="glass-panel p-8 rounded-[2rem] border border-white/5 relative overflow-hidden group">
+                                <div className="absolute -right-4 -bottom-4 opacity-[0.05] group-hover:scale-125 transition-transform duration-500"><stat.icon size={120}/></div>
+                                <p className="text-slate-500 font-black uppercase text-[10px] tracking-widest mb-2">{stat.label}</p>
+                                <p className={`text-4xl font-black italic ${stat.color}`}>{stat.val}</p>
                             </div>
-                        </div>
-
-                        {/* Slides List */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            {slides.map(slide => (
-                                <div key={slide.id} className="group relative h-48 rounded-[2rem] overflow-hidden border border-slate-800 shadow-lg">
-                                    <div className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-110" style={{backgroundImage: `url(${slide.image})`}}></div>
-                                    <div className="absolute inset-0 bg-black/50 group-hover:bg-black/40 transition-colors"></div>
-                                    <div className="absolute bottom-0 left-0 p-6">
-                                        <p className="text-white font-black text-lg italic">{slide.title}</p>
-                                        <p className="text-xs text-slate-300 font-medium">{slide.subtitle}</p>
-                                    </div>
-                                    <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-all translate-y-2 group-hover:translate-y-0">
-                                        <button onClick={() => handleEditSlide(slide)} className="p-2 bg-white text-slate-900 rounded-full hover:scale-110 transition-transform"><Edit3 size={16}/></button>
-                                        <button onClick={() => handleDeleteSlide(slide.id)} className="p-2 bg-red-600 text-white rounded-full hover:scale-110 transition-transform"><Trash2 size={16}/></button>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
+                        ))}
                     </div>
                 )}
 
-                {/* TIPS MANAGEMENT */}
+                {/* ADMIN TIPS MANAGEMENT */}
                 {adminTab === 'tips' && (
-                    <div className="space-y-8">
-                        {/* Add/Edit Tip Form */}
-                        <div className="bg-slate-900 p-8 rounded-[2.5rem] border border-slate-800 shadow-2xl">
-                            <div className="flex justify-between items-center mb-8">
-                                <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                                    {editingTipId ? <Edit3 size={20}/> : <Plus size={20}/>}
-                                    {editingTipId ? 'Edit Tip' : 'Add New Tip'}
-                                </h3>
-                                {editingTipId && (
-                                    <button 
-                                        onClick={() => { setEditingTipId(null); setNewTip({ category: TipCategory.SINGLE, teams: '', league: LEAGUES[0], prediction: '', odds: 1.50, confidence: 'Medium', sport: 'Football', bettingCode: '', legs: [], kickoffTime: '', analysis: '' }); }}
-                                        className="text-xs text-red-400 hover:text-red-300 font-bold uppercase tracking-wider bg-red-500/10 px-4 py-2 rounded-lg"
-                                    >
-                                        Cancel Edit
-                                    </button>
-                                )}
-                            </div>
-
-                            <div className="space-y-6">
-                                <div className="grid grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 xl:grid-cols-3 gap-10">
+                         {/* Tip Form */}
+                         <div className="xl:col-span-1 glass-panel p-8 rounded-[2.5rem] border border-white/10 h-fit sticky top-28">
+                             <h3 className="text-xl font-black text-white italic mb-8 uppercase flex items-center gap-2">
+                                 {editingTipId ? <Edit3 size={20}/> : <Plus size={20}/>} {editingTipId ? 'Refine Tip' : 'Draft New Tip'}
+                             </h3>
+                             <div className="space-y-5">
+                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">Category</label>
+                                        <label className="text-[9px] font-black uppercase text-slate-500 ml-1 mb-1.5 block">Category</label>
                                         <select 
-                                            className="w-full bg-slate-950 border border-slate-800 rounded-xl p-4 text-white text-sm focus:border-brazil-green outline-none transition-colors"
-                                            value={newTip.category}
+                                            value={newTip.category} 
                                             onChange={(e) => setNewTip({...newTip, category: e.target.value as TipCategory})}
+                                            className="w-full bg-black/40 border border-white/5 rounded-xl px-4 py-3 text-sm text-white focus:border-brazil-green outline-none"
                                         >
                                             {Object.values(TipCategory).map(c => <option key={c} value={c}>{c}</option>)}
                                         </select>
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">Kickoff Time</label>
-                                        <input 
-                                            type="datetime-local" 
-                                            className="w-full bg-slate-950 border border-slate-800 rounded-xl p-4 text-white text-sm focus:border-brazil-green outline-none transition-colors"
-                                            value={newTip.kickoffTime ? new Date(newTip.kickoffTime).toISOString().slice(0, 16) : ''}
-                                            onChange={(e) => setNewTip({...newTip, kickoffTime: new Date(e.target.value).toISOString()})}
-                                        />
-                                    </div>
-                                </div>
-
-                                {newTip.category === TipCategory.ODD_4_PLUS || newTip.category.includes('Multiple') ? (
-                                    // ACCUMULATOR BUILDER
-                                    <div className="bg-slate-950/50 p-6 rounded-2xl border border-dashed border-slate-700">
-                                        <h4 className="text-sm font-bold text-white mb-4 uppercase tracking-wider flex items-center gap-2"><List size={14}/> Accumulator Legs</h4>
-                                        <div className="space-y-3 mb-4">
-                                            {newTip.legs?.map((leg, idx) => (
-                                                <div key={idx} className="flex items-center justify-between bg-slate-800 p-3 rounded-xl text-sm border border-slate-700">
-                                                    <span className="text-slate-200 font-medium">{leg.teams} <span className="text-slate-500">({leg.prediction})</span></span>
-                                                    <button onClick={() => handleRemoveLeg(idx)} className="text-red-500 hover:text-red-400 p-1 hover:bg-red-500/10 rounded"><X size={16}/></button>
-                                                </div>
-                                            ))}
-                                        </div>
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                            <input 
-                                                placeholder="Teams (e.g. Chelsea vs Arsenal)" 
-                                                className="bg-slate-900 border border-slate-800 rounded-xl p-3 text-xs text-white focus:border-brazil-green outline-none"
-                                                value={multiLegInput.teams}
-                                                onChange={(e) => setMultiLegInput({...multiLegInput, teams: e.target.value})}
-                                            />
-                                            <input 
-                                                placeholder="Prediction" 
-                                                className="bg-slate-900 border border-slate-800 rounded-xl p-3 text-xs text-white focus:border-brazil-green outline-none"
-                                                value={multiLegInput.prediction}
-                                                onChange={(e) => setMultiLegInput({...multiLegInput, prediction: e.target.value})}
-                                            />
-                                            <button 
-                                                onClick={handleAddLeg}
-                                                className="bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold rounded-xl shadow-lg"
-                                            >
-                                                Add Leg
-                                            </button>
-                                        </div>
-                                        <div className="mt-5">
-                                            <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">Summary Title</label>
-                                            <input 
-                                                type="text" 
-                                                placeholder="e.g. Premier League Treble"
-                                                className="w-full bg-slate-950 border border-slate-800 rounded-xl p-4 text-white text-sm focus:border-brazil-green outline-none transition-colors"
-                                                value={newTip.teams || ''}
-                                                onChange={(e) => setNewTip({...newTip, teams: e.target.value})}
-                                            />
-                                        </div>
-                                    </div>
-                                ) : (
-                                    // SINGLE MATCH INPUTS
-                                    <>
-                                        <div>
-                                            <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">Teams</label>
-                                            <input 
-                                                type="text" 
-                                                placeholder="e.g. Real Madrid vs Barcelona"
-                                                className="w-full bg-slate-950 border border-slate-800 rounded-xl p-4 text-white text-sm focus:border-brazil-green outline-none transition-colors"
-                                                value={newTip.teams || ''}
-                                                onChange={(e) => setNewTip({...newTip, teams: e.target.value})}
-                                            />
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-6">
-                                            <div>
-                                                <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">League</label>
-                                                <select 
-                                                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-4 text-white text-sm focus:border-brazil-green outline-none transition-colors"
-                                                    value={newTip.league}
-                                                    onChange={(e) => setNewTip({...newTip, league: e.target.value})}
-                                                >
-                                                    {LEAGUES.map(l => <option key={l} value={l}>{l}</option>)}
-                                                </select>
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">Prediction</label>
-                                                <input 
-                                                    type="text" 
-                                                    placeholder="e.g. Home Win & Over 2.5"
-                                                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-4 text-white text-sm focus:border-brazil-green outline-none transition-colors"
-                                                    value={newTip.prediction || ''}
-                                                    onChange={(e) => setNewTip({...newTip, prediction: e.target.value})}
-                                                />
-                                            </div>
-                                        </div>
-                                    </>
-                                )}
-
-                                <div className="grid grid-cols-2 gap-6">
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">Odds</label>
-                                        <input 
-                                            type="number" 
-                                            step="0.01"
-                                            className="w-full bg-slate-950 border border-slate-800 rounded-xl p-4 text-white text-sm focus:border-brazil-green outline-none transition-colors"
-                                            value={newTip.odds}
-                                            onChange={(e) => setNewTip({...newTip, odds: parseFloat(e.target.value)})}
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">Booking Code (Opt)</label>
-                                        <input 
-                                            type="text" 
-                                            placeholder="e.g. 8X92K"
-                                            className="w-full bg-slate-950 border border-slate-800 rounded-xl p-4 text-white text-sm font-mono tracking-wider focus:border-brazil-green outline-none transition-colors"
-                                            value={newTip.bettingCode || ''}
-                                            onChange={(e) => setNewTip({...newTip, bettingCode: e.target.value})}
-                                        />
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <div className="flex justify-between items-end mb-2">
-                                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Analysis</label>
-                                        <button 
-                                            onClick={handleGenerateAnalysis}
-                                            disabled={isGeneratingAI}
-                                            className="text-[10px] text-brazil-green font-bold flex items-center hover:text-white transition-colors disabled:opacity-50 uppercase tracking-widest bg-green-900/10 px-3 py-1 rounded-full border border-green-900/20"
+                                        <label className="text-[9px] font-black uppercase text-slate-500 ml-1 mb-1.5 block">League</label>
+                                        <select 
+                                            value={newTip.league} 
+                                            onChange={(e) => setNewTip({...newTip, league: e.target.value})}
+                                            className="w-full bg-black/40 border border-white/5 rounded-xl px-4 py-3 text-sm text-white focus:border-brazil-green outline-none"
                                         >
-                                            <Wand2 size={12} className="mr-1"/> {isGeneratingAI ? 'Generating...' : 'AI Generate'}
-                                        </button>
+                                            {LEAGUES.map(l => <option key={l} value={l}>{l}</option>)}
+                                        </select>
                                     </div>
-                                    <textarea 
-                                        className="w-full bg-slate-950 border border-slate-800 rounded-xl p-4 text-white text-sm h-32 focus:border-brazil-green outline-none resize-none transition-colors"
-                                        placeholder="Expert insights about this match..."
-                                        value={newTip.analysis || ''}
-                                        onChange={(e) => setNewTip({...newTip, analysis: e.target.value})}
-                                    />
-                                </div>
+                                 </div>
 
-                                <button 
-                                    onClick={handleSaveTip}
-                                    disabled={isSaving}
-                                    className="w-full bg-gradient-to-r from-brazil-green to-green-600 hover:from-green-500 hover:to-green-400 text-white font-black uppercase tracking-widest py-4 rounded-xl shadow-xl shadow-green-900/20 active:scale-[0.98] transition-all disabled:opacity-50"
-                                >
-                                    {isSaving ? 'SAVING...' : (editingTipId ? 'UPDATE TIP' : 'PUBLISH TIP')}
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Existing Tips List */}
-                        <div className="space-y-6">
-                            <h3 className="text-xl font-bold text-white mb-4 pl-2">Manage Tips</h3>
-                            {tips.length === 0 && <p className="text-slate-500 pl-2">No tips found.</p>}
-                            {tips.map(tip => (
-                                <TipCard 
-                                    key={tip.id} 
-                                    tip={tip} 
-                                    isAdmin={true} 
-                                    onSettle={handleSettleTip} 
-                                    onDelete={handleDeleteTip}
-                                    onVerify={handleVerifyResult}
-                                    onEdit={handleEditTip}
-                                />
-                            ))}
-                        </div>
-                    </div>
-                )}
-
-                {/* NEWS MANAGEMENT */}
-                {adminTab === 'news' && (
-                    <div className="space-y-8">
-                         <div className="bg-slate-900 p-8 rounded-[2.5rem] border border-slate-800">
-                             <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
-                                {editingNewsId ? <Edit3 size={18}/> : <Plus size={18}/>}
-                                {editingNewsId ? 'Edit News' : 'Add News Article'}
-                            </h3>
-                             <div className="space-y-6">
                                  <div>
-                                     <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">Title</label>
+                                     <label className="text-[9px] font-black uppercase text-slate-500 ml-1 mb-1.5 block">Teams / Event Name</label>
                                      <input 
-                                         type="text" 
-                                         className="w-full bg-slate-950 border border-slate-800 rounded-xl p-4 text-white text-sm focus:border-brazil-green focus:outline-none transition-colors"
-                                         value={newNews.title || ''}
-                                         onChange={(e) => setNewNews({...newNews, title: e.target.value})}
+                                        type="text" value={newTip.teams} 
+                                        onChange={(e) => setNewTip({...newTip, teams: e.target.value})}
+                                        className="w-full bg-black/40 border border-white/5 rounded-xl px-4 py-3 text-sm text-white focus:border-brazil-green outline-none" 
+                                        placeholder="e.g. Brazil vs Argentina"
                                      />
                                  </div>
-                                 <div>
-                                     <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">Image URL (or upload)</label>
-                                     <div className="flex gap-3">
-                                        <input 
-                                            type="text" 
-                                            className="flex-1 bg-slate-950 border border-slate-800 rounded-xl p-4 text-white text-sm focus:border-brazil-green focus:outline-none transition-colors"
-                                            value={newNews.imageUrl || ''}
-                                            onChange={(e) => setNewNews({...newNews, imageUrl: e.target.value})}
-                                        />
-                                        <label className="bg-slate-800 hover:bg-slate-700 text-white px-6 rounded-xl flex items-center cursor-pointer transition-colors border border-white/5">
-                                            <UploadCloud size={20} />
-                                            <input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, (val) => setNewNews({...newNews, imageUrl: val}))} />
-                                        </label>
+
+                                 <div className="grid grid-cols-2 gap-4">
+                                     <div>
+                                         <label className="text-[9px] font-black uppercase text-slate-500 ml-1 mb-1.5 block">Prediction</label>
+                                         <input 
+                                            type="text" value={newTip.prediction} 
+                                            onChange={(e) => setNewTip({...newTip, prediction: e.target.value})}
+                                            className="w-full bg-black/40 border border-white/5 rounded-xl px-4 py-3 text-sm text-white focus:border-brazil-green outline-none" 
+                                            placeholder="e.g. Over 2.5"
+                                         />
+                                     </div>
+                                     <div>
+                                         <label className="text-[9px] font-black uppercase text-slate-500 ml-1 mb-1.5 block">Odds</label>
+                                         <input 
+                                            type="number" step="0.01" value={newTip.odds} 
+                                            onChange={(e) => setNewTip({...newTip, odds: parseFloat(e.target.value)})}
+                                            className="w-full bg-black/40 border border-white/5 rounded-xl px-4 py-3 text-sm text-white focus:border-brazil-green outline-none" 
+                                         />
                                      </div>
                                  </div>
+
                                  <div>
-                                     <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">Content</label>
-                                     <textarea 
-                                         className="w-full bg-slate-950 border border-slate-800 rounded-xl p-4 text-white text-sm h-40 resize-none focus:border-brazil-green focus:outline-none transition-colors"
-                                         value={newNews.body || ''}
-                                         onChange={(e) => setNewNews({...newNews, body: e.target.value})}
+                                     <label className="text-[9px] font-black uppercase text-slate-500 ml-1 mb-1.5 block">Kickoff Time</label>
+                                     <input 
+                                        type="datetime-local" value={newTip.kickoffTime} 
+                                        onChange={(e) => setNewTip({...newTip, kickoffTime: e.target.value})}
+                                        className="w-full bg-black/40 border border-white/5 rounded-xl px-4 py-3 text-sm text-white focus:border-brazil-green outline-none" 
                                      />
                                  </div>
-                                 <div className="flex gap-4">
-                                     {editingNewsId && (
-                                         <button onClick={() => { setEditingNewsId(null); setNewNews({ title: '', category: 'Football', source: '', body: '', imageUrl: '', videoUrl: '', matchDate: '' }); }} className="px-6 bg-slate-800 text-slate-300 rounded-xl text-sm font-bold hover:bg-slate-700 transition-colors">Cancel</button>
-                                     )}
-                                     <button onClick={handleSaveNews} disabled={isSaving} className="flex-1 bg-brazil-green hover:bg-green-600 text-white py-3 rounded-xl font-bold shadow-lg shadow-green-900/20 disabled:opacity-50 uppercase tracking-widest transition-all">
-                                         {isSaving ? 'Saving...' : (editingNewsId ? 'Update Article' : 'Publish Article')}
-                                     </button>
+
+                                 <div>
+                                     <div className="flex justify-between items-center mb-1.5">
+                                         <label className="text-[9px] font-black uppercase text-slate-500 ml-1 block">AI Analysis</label>
+                                         <button 
+                                            onClick={handleAIGenerateAnalysis} 
+                                            disabled={isGeneratingAI || !newTip.teams}
+                                            className="text-[9px] font-black text-brazil-green uppercase flex items-center gap-1 hover:text-white transition-colors disabled:opacity-30"
+                                         >
+                                             <Sparkles size={10}/> Generate with Gemini
+                                         </button>
+                                     </div>
+                                     <textarea 
+                                        value={newTip.analysis} 
+                                        onChange={(e) => setNewTip({...newTip, analysis: e.target.value})}
+                                        className="w-full bg-black/40 border border-white/5 rounded-xl px-4 py-3 text-sm text-white focus:border-brazil-green outline-none h-24 resize-none" 
+                                        placeholder="Add expert insight..."
+                                     />
                                  </div>
+
+                                 <button 
+                                    onClick={handleSaveTip} 
+                                    disabled={isSaving || !newTip.teams || !newTip.prediction}
+                                    className="w-full bg-brazil-green text-white py-4 rounded-xl font-black uppercase tracking-widest shadow-lg shadow-green-900/30 active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+                                 >
+                                     {isSaving ? <RefreshCcw className="animate-spin" size={18}/> : <Check size={18}/>}
+                                     {editingTipId ? 'UPDATE ARENA' : 'DEPLOY TIP'}
+                                 </button>
+                                 
+                                 {editingTipId && (
+                                     <button 
+                                        onClick={() => { setEditingTipId(null); setNewTip({ category: TipCategory.SINGLE, teams: '', league: LEAGUES[0], prediction: '', odds: 1.50, confidence: 'Medium', sport: 'Football', bettingCode: '', legs: [], kickoffTime: '', analysis: '' }); }}
+                                        className="w-full bg-slate-800 text-slate-400 py-3 rounded-xl font-bold uppercase tracking-widest text-xs hover:bg-slate-700 hover:text-white transition-all"
+                                     >
+                                         Cancel Edit
+                                     </button>
+                                 )}
                              </div>
                          </div>
-                         
-                         <div className="space-y-4">
-                             {news.map(post => (
-                                 <div key={post.id} className="bg-slate-900 p-5 rounded-2xl border border-slate-800 flex justify-between items-center shadow-lg hover:border-white/10 transition-colors">
+
+                         {/* Tip List (Table-ish) */}
+                         <div className="xl:col-span-2 space-y-4">
+                             <div className="flex items-center gap-4 mb-4">
+                                <Search className="text-slate-600" size={20}/>
+                                <input 
+                                    type="text" 
+                                    placeholder="Search tips..." 
+                                    className="flex-1 bg-transparent border-b border-white/5 py-2 text-white outline-none focus:border-brazil-green"
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                />
+                             </div>
+                             
+                             {tips.filter(t => t.teams.toLowerCase().includes(searchTerm.toLowerCase())).map(tip => (
+                                 <div key={tip.id} className="glass-panel p-6 rounded-[1.5rem] border border-white/5 flex items-center justify-between group">
                                      <div className="flex items-center gap-5">
-                                         {post.imageUrl && <img src={post.imageUrl} className="w-16 h-16 rounded-xl object-cover shadow-md" alt="" />}
+                                         <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-black italic border ${
+                                             tip.status === TipStatus.WON ? 'bg-brazil-green/10 text-brazil-green border-brazil-green/20' :
+                                             tip.status === TipStatus.LOST ? 'bg-red-500/10 text-red-500 border-red-500/20' :
+                                             'bg-slate-800 text-slate-500 border-white/5'
+                                         }`}>
+                                             {tip.status === TipStatus.WON ? 'W' : tip.status === TipStatus.LOST ? 'L' : '?'}
+                                         </div>
                                          <div>
-                                             <h4 className="text-white font-bold text-lg">{post.title}</h4>
-                                             <p className="text-xs text-slate-500 mt-1 font-medium">{new Date(post.createdAt).toLocaleDateString()}</p>
+                                             <h4 className="text-white font-black text-sm">{tip.teams}</h4>
+                                             <p className="text-slate-500 text-[9px] uppercase font-bold tracking-widest">{tip.league} • {tip.prediction}</p>
                                          </div>
                                      </div>
-                                     <div className="flex gap-2">
-                                         <button onClick={() => handleEditNews(post)} className="p-2.5 bg-slate-800 text-white rounded-xl hover:bg-slate-700 hover:scale-110 transition-all"><Edit3 size={18}/></button>
-                                         <button onClick={() => handleDeleteNews(post.id)} className="p-2.5 bg-red-500/10 text-red-500 rounded-xl hover:bg-red-500 hover:text-white hover:scale-110 transition-all"><Trash2 size={18}/></button>
+                                     <div className="flex items-center gap-2">
+                                         {tip.status === TipStatus.PENDING && (
+                                            <>
+                                                <button onClick={() => handleAIVerifyTip(tip)} title="AI Verify Result" className="p-2.5 bg-brazil-blue/10 text-brazil-blue rounded-xl hover:bg-brazil-blue hover:text-white transition-all"><Sparkles size={16}/></button>
+                                                <button onClick={() => dbService.settleTip(tip.id, TipStatus.WON, 'WIN')} className="p-2.5 bg-emerald-500/10 text-emerald-500 rounded-xl hover:bg-emerald-500 hover:text-white transition-all"><Check size={16}/></button>
+                                                <button onClick={() => dbService.settleTip(tip.id, TipStatus.LOST, 'LOSS')} className="p-2.5 bg-red-500/10 text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition-all"><X size={16}/></button>
+                                            </>
+                                         )}
+                                         <button onClick={() => { setEditingTipId(tip.id); setNewTip(tip); }} className="p-2.5 bg-slate-800 text-slate-400 rounded-xl hover:bg-white hover:text-slate-900 transition-all"><Edit3 size={16}/></button>
+                                         <button onClick={() => dbService.deleteTip(tip.id)} className="p-2.5 bg-slate-800 text-slate-400 rounded-xl hover:bg-red-500 hover:text-white transition-all"><Trash2 size={16}/></button>
                                      </div>
                                  </div>
                              ))}
@@ -1285,79 +602,306 @@ export const App: React.FC = () => {
                     </div>
                 )}
 
-                {/* USERS MANAGEMENT */}
-                {adminTab === 'users' && (
-                    <div className="bg-slate-900 p-8 rounded-[2.5rem] border border-slate-800">
-                        <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
-                            <h3 className="text-xl font-bold text-white flex items-center gap-3">
-                                <UserCog className="text-brazil-green" size={24} />
-                                User Management
+                {/* ADMIN NEWS MANAGEMENT */}
+                {adminTab === 'news' && (
+                    <div className="space-y-10">
+                        <div className="glass-panel p-10 rounded-[3rem] border border-white/10">
+                            <h3 className="text-2xl font-black text-white italic mb-10 uppercase flex items-center gap-3">
+                                <Edit3 size={24}/> {editingNewsId ? 'Refine Dispatch' : 'Compose News'}
                             </h3>
-                            <div className="relative w-full md:w-64">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
-                                <input 
-                                    type="text" 
-                                    placeholder="Search users..." 
-                                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-3 text-sm text-white focus:outline-none focus:border-brazil-green"
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                />
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                                <div className="space-y-6">
+                                    <div>
+                                        <label className="text-[9px] font-black uppercase text-slate-500 mb-2 block">Article Title</label>
+                                        <input 
+                                            type="text" value={newNews.title} 
+                                            onChange={(e) => setNewNews({...newNews, title: e.target.value})}
+                                            className="w-full bg-black/40 border border-white/5 rounded-2xl px-6 py-4 text-white focus:border-brazil-green outline-none" 
+                                            placeholder="Breaking headlines..."
+                                        />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="text-[9px] font-black uppercase text-slate-500 mb-2 block">Category</label>
+                                            <select 
+                                                value={newNews.category} 
+                                                onChange={(e) => setNewNews({...newNews, category: e.target.value})}
+                                                className="w-full bg-black/40 border border-white/5 rounded-2xl px-6 py-4 text-white focus:border-brazil-green outline-none"
+                                            >
+                                                <option value="Football">Football</option>
+                                                <option value="Basketball">Basketball</option>
+                                                <option value="Maestro Spec">Maestro Exclusive</option>
+                                                <option value="Transfer">Transfer News</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="text-[9px] font-black uppercase text-slate-500 mb-2 block">Source (Optional)</label>
+                                            <input 
+                                                type="text" value={newNews.source} 
+                                                onChange={(e) => setNewNews({...newNews, source: e.target.value})}
+                                                className="w-full bg-black/40 border border-white/5 rounded-2xl px-6 py-4 text-white focus:border-brazil-green outline-none" 
+                                                placeholder="e.g. ESPN"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="text-[9px] font-black uppercase text-slate-500 mb-2 block">Body Text</label>
+                                        <textarea 
+                                            value={newNews.body} 
+                                            onChange={(e) => setNewNews({...newNews, body: e.target.value})}
+                                            className="w-full bg-black/40 border border-white/5 rounded-2xl px-6 py-4 text-white focus:border-brazil-green outline-none h-40 resize-none" 
+                                            placeholder="Details of the dispatch..."
+                                        />
+                                    </div>
+                                </div>
+                                <div className="space-y-6">
+                                    <div 
+                                        onClick={() => handleImageUpload((b64) => setNewNews(prev => ({ ...prev, imageUrl: b64 })))}
+                                        className="h-64 bg-black/40 border-2 border-dashed border-white/10 rounded-[2.5rem] flex flex-col items-center justify-center cursor-pointer hover:border-brazil-green transition-all group relative overflow-hidden"
+                                    >
+                                        {newNews.imageUrl ? (
+                                            <img src={newNews.imageUrl} className="w-full h-full object-cover"/>
+                                        ) : (
+                                            <>
+                                                <UploadCloud className="text-slate-600 group-hover:text-brazil-green transition-colors mb-3" size={48}/>
+                                                <span className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Featured Media</span>
+                                            </>
+                                        )}
+                                        {newNews.imageUrl && <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white font-black text-xs uppercase tracking-widest">Change Media</div>}
+                                    </div>
+                                    
+                                    <button 
+                                        onClick={async () => {
+                                            setIsSaving(true);
+                                            if (editingNewsId) await dbService.updateNews({ ...newNews, id: editingNewsId } as NewsPost);
+                                            else await dbService.addNews(newNews as Omit<NewsPost, 'id' | 'createdAt'>);
+                                            setNewNews({ title: '', category: 'Football', body: '' });
+                                            setEditingNewsId(null);
+                                            setIsSaving(false);
+                                        }}
+                                        disabled={isSaving || !newNews.title || !newNews.body}
+                                        className="w-full bg-brazil-blue text-white py-5 rounded-[2rem] font-black uppercase tracking-widest shadow-xl active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+                                    >
+                                        {isSaving ? <RefreshCcw className="animate-spin"/> : <Check/>}
+                                        {editingNewsId ? 'PUBLISH UPDATES' : 'RELEASE DISPATCH'}
+                                    </button>
+                                    
+                                    {editingNewsId && (
+                                        <button 
+                                            onClick={() => { setEditingNewsId(null); setNewNews({ title: '', category: 'Football', body: '' }); }}
+                                            className="w-full py-4 rounded-[2rem] font-bold text-slate-500 uppercase tracking-widest text-xs hover:text-white transition-colors"
+                                        >
+                                            Cancel Editing
+                                        </button>
+                                    )}
+                                </div>
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                            {allUsers
-                                .filter(u => u.displayName?.toLowerCase().includes(searchTerm.toLowerCase()) || u.email.toLowerCase().includes(searchTerm.toLowerCase()))
-                                .map(u => (
-                                <div key={u.uid} className="flex flex-col sm:flex-row sm:items-center justify-between bg-slate-950 p-5 rounded-2xl border border-slate-800 hover:border-white/10 transition-colors gap-4 sm:gap-0">
-                                    <div>
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center font-bold text-white border border-white/5">
-                                                {u.displayName?.charAt(0).toUpperCase()}
-                                            </div>
-                                            <div>
-                                                <p className="text-white font-bold text-base">{u.displayName || 'No Name'}</p>
-                                                <p className="text-xs text-slate-500 font-medium">{u.email}</p>
-                                            </div>
-                                        </div>
-                                        <div className="mt-2 flex gap-2">
-                                            <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${u.role === UserRole.ADMIN ? 'bg-brazil-green/20 text-brazil-green border border-brazil-green/30' : 'bg-slate-800 text-slate-400 border border-white/5'}`}>
-                                                {u.role}
-                                            </span>
-                                            <span className="text-[10px] text-slate-600 font-mono self-center">ID: {u.uid.slice(0,6)}...</span>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                            {news.map(post => (
+                                <div key={post.id} className="glass-panel rounded-[2rem] overflow-hidden group border border-white/5">
+                                    <div className="h-48 bg-slate-800 relative">
+                                        {post.imageUrl && <img src={post.imageUrl} className="w-full h-full object-cover"/>}
+                                        <div className="absolute top-4 right-4 flex gap-2">
+                                            <button onClick={() => { setEditingNewsId(post.id); setNewNews(post); }} className="p-2 bg-white text-slate-900 rounded-lg hover:bg-brazil-green hover:text-white transition-all"><Edit3 size={14}/></button>
+                                            <button onClick={() => dbService.deleteNews(post.id)} className="p-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-all"><Trash2 size={14}/></button>
                                         </div>
                                     </div>
-                                    
-                                    <div className="flex items-center gap-2 self-end sm:self-auto">
-                                        {u.role !== UserRole.ADMIN && (
-                                            <button 
-                                                onClick={() => handleUserAction(u.uid, 'make_admin')}
-                                                className="px-4 py-2 bg-blue-600/10 text-blue-500 hover:bg-blue-600 hover:text-white border border-blue-600/20 rounded-xl text-xs font-bold uppercase tracking-wider transition-all"
-                                            >
-                                                Promote
-                                            </button>
-                                        )}
-                                        {u.uid !== user.uid && (
-                                            <button 
-                                                onClick={() => handleUserAction(u.uid, 'delete')}
-                                                className="p-2 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border border-red-500/20 rounded-xl transition-all"
-                                                title="Delete User"
-                                            >
-                                                <Trash2 size={18}/>
-                                            </button>
-                                        )}
+                                    <div className="p-6">
+                                        <h4 className="text-white font-black text-lg mb-2 truncate">{post.title}</h4>
+                                        <p className="text-slate-500 text-xs line-clamp-2">{post.body}</p>
                                     </div>
                                 </div>
                             ))}
-                            {allUsers.length === 0 && (
-                                <div className="col-span-full text-center py-10 text-slate-500">No users found.</div>
+                        </div>
+                    </div>
+                )}
+
+                {/* ADMIN USERS MANAGEMENT */}
+                {adminTab === 'users' && (
+                    <div className="glass-panel rounded-[3rem] border border-white/10 overflow-hidden shadow-2xl">
+                        <table className="w-full text-left">
+                            <thead className="bg-white/[0.02] border-b border-white/5">
+                                <tr>
+                                    <th className="px-8 py-6 text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Profile</th>
+                                    <th className="px-8 py-6 text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Email Address</th>
+                                    <th className="px-8 py-6 text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Current Role</th>
+                                    <th className="px-8 py-6 text-[10px] font-black uppercase text-slate-500 tracking-[0.2em] text-right">Arena Access</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-white/5">
+                                {allUsers.map(u => (
+                                    <tr key={u.uid} className="hover:bg-white/[0.01] transition-colors group">
+                                        <td className="px-8 py-6">
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center font-black text-white border border-white/5 group-hover:border-brazil-green transition-all uppercase">
+                                                    {u.displayName?.charAt(0)}
+                                                </div>
+                                                <span className="text-sm font-black text-white">{u.displayName}</span>
+                                            </div>
+                                        </td>
+                                        <td className="px-8 py-6 text-sm text-slate-400 font-mono">{u.email}</td>
+                                        <td className="px-8 py-6">
+                                            <span className={`text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-lg border ${
+                                                u.role === UserRole.ADMIN ? 'text-brazil-yellow border-brazil-yellow/20 bg-brazil-yellow/5' : 'text-slate-500 border-white/10'
+                                            }`}>
+                                                {u.role}
+                                            </span>
+                                        </td>
+                                        <td className="px-8 py-6 text-right">
+                                            <div className="flex items-center justify-end gap-2">
+                                                <button 
+                                                    onClick={() => dbService.updateUserRole(u.uid, u.role === UserRole.ADMIN ? UserRole.USER : UserRole.ADMIN)}
+                                                    className="p-2.5 bg-white/5 text-slate-400 rounded-xl hover:bg-white hover:text-slate-900 transition-all"
+                                                    title="Toggle Role"
+                                                >
+                                                    {u.role === UserRole.ADMIN ? <UserMinus size={18}/> : <UserCheck size={18}/>}
+                                                </button>
+                                                <button 
+                                                    onClick={() => { if(confirm('Eject this user from the Arena?')) dbService.deleteUser(u.uid); }}
+                                                    className="p-2.5 bg-red-500/10 text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition-all"
+                                                    title="Revoke Access"
+                                                >
+                                                    <Trash2 size={18}/>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+
+                {/* ADMIN MESSAGES MANAGEMENT */}
+                {adminTab === 'messages' && (
+                    <div className="flex flex-col h-[700px] glass-panel rounded-[3rem] border border-white/10 overflow-hidden shadow-2xl">
+                         <div className="flex-1 overflow-y-auto p-10 space-y-10 scrollbar-hide">
+                            {messages.map(msg => (
+                                <div key={msg.id} className="flex flex-col items-start max-w-4xl">
+                                     <div className="flex items-center gap-3 mb-3">
+                                         <div className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center text-[10px] font-black text-white">{msg.userName.charAt(0)}</div>
+                                         <div>
+                                             <span className="text-xs font-black text-white uppercase tracking-widest">{msg.userName}</span>
+                                             <span className="text-[9px] text-slate-500 ml-3">{new Date(msg.createdAt).toLocaleString()}</span>
+                                         </div>
+                                     </div>
+                                     <div className="bg-slate-800 p-6 rounded-[1.5rem] rounded-tl-none border border-white/5 shadow-xl w-full">
+                                         <p className="text-slate-200 text-sm leading-relaxed mb-6">{msg.content}</p>
+                                         
+                                         {msg.reply ? (
+                                             <div className="bg-brazil-green/10 border border-brazil-green/20 p-5 rounded-2xl flex items-start gap-4">
+                                                 <Trophy size={16} className="text-brazil-green mt-0.5"/>
+                                                 <div>
+                                                     <p className="text-[9px] font-black text-brazil-green uppercase tracking-widest mb-1">Maestro's Answer</p>
+                                                     <p className="text-xs text-slate-300 italic">"{msg.reply}"</p>
+                                                 </div>
+                                             </div>
+                                         ) : (
+                                             <div className="flex gap-3">
+                                                 <input 
+                                                     type="text" 
+                                                     placeholder="Your official response..." 
+                                                     value={replyText[msg.id] || ''} 
+                                                     onChange={(e) => setReplyText(prev => ({ ...prev, [msg.id]: e.target.value }))}
+                                                     className="flex-1 bg-black/40 border border-white/5 rounded-xl px-4 py-3 text-white text-xs outline-none focus:border-brazil-green transition-all"
+                                                     onKeyDown={(e) => e.key === 'Enter' && handleAdminReply(msg.id)}
+                                                 />
+                                                 <button onClick={() => handleAdminReply(msg.id)} className="bg-brazil-green text-white px-5 rounded-xl shadow-lg active:scale-95 transition-all"><Send size={18}/></button>
+                                             </div>
+                                         )}
+                                     </div>
+                                     <button onClick={() => dbService.deleteMessage(msg.id)} className="mt-2 text-[9px] font-black text-slate-600 uppercase hover:text-red-500 transition-colors ml-2">Archive Thread</button>
+                                </div>
+                            ))}
+                            {messages.length === 0 && (
+                                <div className="h-full flex flex-col items-center justify-center text-slate-700 opacity-20">
+                                    <MessageSquare size={120}/>
+                                    <p className="text-2xl font-black uppercase tracking-[0.3em] mt-8 italic">No Incoming Signals</p>
+                                </div>
                             )}
+                            <div ref={messagesEndRef} />
+                         </div>
+                    </div>
+                )}
+
+                {/* ADMIN SLIDES (BANNERS) */}
+                {adminTab === 'slides' && (
+                    <div className="space-y-10">
+                        <div className="glass-panel p-8 rounded-[2.5rem] border border-white/10 flex flex-col md:flex-row gap-10 items-center">
+                            <div 
+                                onClick={() => handleImageUpload((b64) => setNewSlide(prev => ({ ...prev, image: b64 })))}
+                                className="w-full md:w-80 aspect-video bg-black/40 border-2 border-dashed border-white/10 rounded-3xl flex flex-col items-center justify-center cursor-pointer hover:border-brazil-green transition-all group overflow-hidden shrink-0"
+                            >
+                                {newSlide.image ? (
+                                    <img src={newSlide.image} className="w-full h-full object-cover"/>
+                                ) : (
+                                    <>
+                                        <ImageIcon className="text-slate-600 mb-2" size={32}/>
+                                        <span className="text-[9px] font-black uppercase text-slate-500">Banner Asset</span>
+                                    </>
+                                )}
+                            </div>
+                            <div className="flex-1 space-y-4 w-full">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <input 
+                                        type="text" value={newSlide.title} 
+                                        onChange={(e) => setNewSlide({...newSlide, title: e.target.value})}
+                                        className="bg-black/40 border border-white/5 rounded-xl px-5 py-3 text-white focus:border-brazil-green outline-none text-sm" 
+                                        placeholder="Banner Title"
+                                    />
+                                    <input 
+                                        type="text" value={newSlide.subtitle} 
+                                        onChange={(e) => setNewSlide({...newSlide, subtitle: e.target.value})}
+                                        className="bg-black/40 border border-white/5 rounded-xl px-5 py-3 text-white focus:border-brazil-green outline-none text-sm" 
+                                        placeholder="Banner Subtitle"
+                                    />
+                                </div>
+                                <button 
+                                    onClick={async () => {
+                                        setIsSaving(true);
+                                        await dbService.addSlide(newSlide);
+                                        setNewSlide({ title: '', subtitle: '', image: '' });
+                                        setIsSaving(false);
+                                    }}
+                                    disabled={isSaving || !newSlide.image}
+                                    className="w-full bg-brazil-green text-white py-4 rounded-xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 disabled:opacity-50"
+                                >
+                                    {isSaving ? <RefreshCcw className="animate-spin" size={16}/> : <Plus size={16}/>} Deploy Banner
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                            {slides.map(s => (
+                                <div key={s.id} className="glass-panel rounded-[2rem] overflow-hidden group border border-white/5 aspect-video relative">
+                                    <img src={s.image} className="w-full h-full object-cover"/>
+                                    <div className="absolute inset-0 bg-black/60 p-6 flex flex-col justify-end">
+                                        <h4 className="text-white font-black italic uppercase tracking-tighter text-lg">{s.title}</h4>
+                                        <p className="text-slate-400 text-xs font-medium">{s.subtitle}</p>
+                                    </div>
+                                    <button 
+                                        onClick={() => dbService.deleteSlide(s.id)}
+                                        className="absolute top-4 right-4 p-2.5 bg-red-500 text-white rounded-xl shadow-lg opacity-0 group-hover:opacity-100 transition-all hover:scale-110"
+                                    >
+                                        <Trash2 size={16}/>
+                                    </button>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 )}
             </div>
         )}
-
     </Layout>
   );
 };
+
+const ImageIcon: React.FC<{className?: string, size?: number}> = ({className, size=24}) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <rect width="18" height="18" x="3" y="3" rx="2" ry="2"/>
+        <circle cx="9" cy="9" r="2"/>
+        <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>
+    </svg>
+);

@@ -38,8 +38,10 @@ class FirebaseDBService {
            }
         } catch (e) { console.warn("User doc fetch failed", e); }
 
-        // Admin Override for owner
-        if (firebaseUser.email === 'admin@jirvinho.com') role = UserRole.ADMIN;
+        // Admin Override for owner - must check email explicitly
+        if (firebaseUser.email?.toLowerCase() === 'admin@jirvinho.com') {
+          role = UserRole.ADMIN;
+        }
 
         callback({
           uid: firebaseUser.uid,
@@ -59,10 +61,14 @@ class FirebaseDBService {
     const userCredential = await auth.signInWithEmailAndPassword(email, password);
     const user = userCredential.user;
     if (!user) throw new Error("Login failed");
+
+    // Check for admin override immediately on login return
+    const role = email.toLowerCase() === 'admin@jirvinho.com' ? UserRole.ADMIN : UserRole.USER;
+
     return { 
         uid: user.uid, 
         email: user.email!, 
-        role: UserRole.USER 
+        role: role
     };
   }
 
